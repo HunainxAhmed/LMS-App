@@ -27,7 +27,7 @@ class UpdateVersionPayload(BaseModel):
 
 # Default configured production release info
 CURRENT_CONFIG = {
-    "latest_version": "1.0.1",
+    "latest_version": "1.0.0",
     "is_mandatory": False,
     "release_notes": [
         "Dynamic In-App Update system with real-time download progress bar",

@@ -121,8 +121,17 @@ export async function downloadAndInstallApk(
   downloadUrl: string,
   onProgress: (progress: DownloadProgress) => void
 ): Promise<void> {
+  // Graceful browser handling when testing in web preview
+  if (Platform.OS === "web") {
+    if (typeof window !== "undefined") {
+      onProgress({ progressPercent: 100, bytesWritten: 100, totalBytes: 100 });
+      window.open(downloadUrl, "_blank");
+    }
+    return;
+  }
+
   if (Platform.OS !== "android") {
-    throw new Error("Direct APK installation is only supported on Android devices.");
+    throw new Error("Direct APK installation is supported on Android devices.");
   }
 
   const targetDir = `${FileSystem.cacheDirectory}apk_updates/`;
