@@ -17,8 +17,8 @@ const KEYS = {
   OFFLINE_MATERIALS: "cf_offline_materials",
 };
 
-// Default Backend LAN Address detected on system network: 192.168.1.104:8000
-export const DEFAULT_API_URL = "http://192.168.1.104:8000/api/v1";
+// Default Production Backend on Render
+export const DEFAULT_API_URL = "https://lmsapp-backend-gk3c.onrender.com/api/v1";
 
 // ==============================================================================
 // SECURE CREDENTIAL STORAGE (Android Keystore / iOS Keychain)
