@@ -54,7 +54,6 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { account, user, disconnectLMS, logout } = useAuthStore();
 
-  const [serverUrlInput, setServerUrlInput] = useState(DEFAULT_API_URL);
   const [downloadPath, setDownloadPath] = useState(DEFAULT_DOWNLOAD_DIR);
   const [cloudMonitoring, setCloudMonitoring] = useState(false);
   const [threshold, setThreshold] = useState("75");
@@ -98,7 +97,6 @@ export default function SettingsScreen() {
   };
 
   useEffect(() => {
-    getServerUrl().then((u) => setServerUrlInput(u));
     getDownloadDirectory().then((p) => setDownloadPath(p));
     if (account) {
       setCloudMonitoring(!!account.cloud_monitoring_enabled);
@@ -173,11 +171,6 @@ export default function SettingsScreen() {
     } catch (e: any) {
       Alert.alert("Error", e.message || "Failed to update preferences.");
     }
-  };
-
-  const handleSaveServerUrl = async () => {
-    await setServerUrl(serverUrlInput);
-    Alert.alert("Server URL Updated", `API requests will now route to ${serverUrlInput}.`);
   };
 
   const handleTestNotification = async (type: "general" | "deadline" = "general") => {
@@ -485,7 +478,7 @@ export default function SettingsScreen() {
             Lecture slides and coursework attachments will be saved to this folder:
           </Text>
           <TextInput
-            style={styles.serverInput}
+            style={styles.pathInput}
             value={downloadPath}
             onChangeText={setDownloadPath}
             autoCapitalize="none"
@@ -493,10 +486,10 @@ export default function SettingsScreen() {
           />
           <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
             <TouchableOpacity
-              style={[styles.saveServerBtn, { flex: 1 }]}
+              style={[styles.savePathBtn, { flex: 1 }]}
               onPress={handleSaveDownloadPath}
             >
-              <Text style={styles.saveServerBtnText}>Save Location</Text>
+              <Text style={styles.savePathBtnText}>Save Location</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -536,19 +529,21 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Section: Server URL Configuration */}
-        <Text style={styles.sectionHeader}>Development & Server IP</Text>
+        {/* Section: Cloud Server Status */}
+        <Text style={styles.sectionHeader}>Cloud Infrastructure</Text>
         <View style={styles.card}>
-          <Text style={styles.itemTitle}>Backend API URL (Wi-Fi LAN IP):</Text>
-          <TextInput
-            style={styles.serverInput}
-            value={serverUrlInput}
-            onChangeText={setServerUrlInput}
-            autoCapitalize="none"
-          />
-          <TouchableOpacity style={styles.saveServerBtn} onPress={handleSaveServerUrl}>
-            <Text style={styles.saveServerBtnText}>Update Server Address</Text>
-          </TouchableOpacity>
+          <View style={styles.rowBetween}>
+            <View style={styles.labelGroup}>
+              <Text style={styles.itemTitle}>CampusFlow Cloud Engine</Text>
+              <Text style={styles.itemSubtitle}>
+                Connected to Render 24/7 Production Server
+              </Text>
+            </View>
+            <View style={styles.cloudOnlinePill}>
+              <View style={styles.cloudDot} />
+              <Text style={styles.cloudOnlineText}>Online</Text>
+            </View>
+          </View>
         </View>
 
         {/* Section: Account Actions */}
@@ -803,7 +798,30 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.primary,
   },
-  serverInput: {
+  cloudOnlinePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: colors.primarySubtle,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  cloudDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.primary,
+  },
+  cloudOnlineText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: colors.primary,
+    letterSpacing: 0.2,
+  },
+  pathInput: {
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
     borderRadius: 8,
@@ -814,13 +832,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSecondary,
     marginVertical: 8,
   },
-  saveServerBtn: {
+  savePathBtn: {
     backgroundColor: colors.primary,
     paddingVertical: 8,
     borderRadius: 8,
     alignItems: "center",
   },
-  saveServerBtnText: {
+  savePathBtnText: {
     color: "#fff",
     fontSize: 12,
     fontWeight: "700",
