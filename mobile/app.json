@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "CampusFlow",
+    "slug": "campusflow",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "campusflow",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "pk.edu.bahria.campusflow"
+    },
+    "android": {
+      "package": "pk.edu.bahria.campusflow.unofficial",
+      "adaptiveIcon": {
+        "backgroundColor": "#0f766e",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      },
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "POST_NOTIFICATIONS",
+        "VIBRATE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#0f766e",
+          "sounds": []
+        }
+      ]
+    ]
+  }
+}

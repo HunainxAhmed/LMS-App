@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/.venv/
+.pytest_cache/
+campusflow.db
+*.sqlite3
+
+# Node / React Native / Expo
+node_modules/
+.expo/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment & Secrets
+.env
+.env.local
+*.pem
+credentials.json
+
+# Temporary files
+temp/
+campusflow_downloads_*
