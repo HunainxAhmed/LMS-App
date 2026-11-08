@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
 import { colors } from "../theme/colors";
-import { RefreshCw, CloudCheck, HardDrive } from "lucide-react-native";
+import { RefreshCw, Cloud, HardDrive } from "lucide-react-native";
 
 interface SyncBannerProps {
   isSyncing: boolean;
@@ -15,7 +15,7 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({
   isSyncing,
   syncStep,
   lastSyncedAt,
-  cloudMonitoringEnabled = false,
+  cloudMonitoringEnabled = true,
   onSyncPress,
 }) => {
   const formatTime = (iso?: string | null) => {
@@ -26,33 +26,28 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({
         s = s + "Z";
       }
       const d = new Date(s);
-      if (isNaN(d.getTime())) return "Synced recently";
+      if (isNaN(d.getTime())) return "Synced just now";
       return `Synced ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
     } catch {
-      return "Synced recently";
+      return "Synced just now";
     }
   };
 
   return (
     <View style={styles.banner}>
       <View style={styles.left}>
-        <View style={styles.modeRow}>
-          {cloudMonitoringEnabled ? (
-            <View style={[styles.modePill, { backgroundColor: colors.primarySubtle }]}>
-              <CloudCheck size={12} color={colors.primary} />
-              <Text style={styles.modeText}>Cloud 24/7</Text>
-            </View>
-          ) : (
-            <View style={[styles.modePill, { backgroundColor: colors.surfaceSecondary }]}>
-              <HardDrive size={12} color={colors.textSecondary} />
-              <Text style={[styles.modeText, { color: colors.textSecondary }]}>Device Only</Text>
-            </View>
-          )}
-
-          <Text style={styles.timeText}>
-            {isSyncing ? syncStep || "Synchronizing..." : formatTime(lastSyncedAt)}
-          </Text>
+        <View style={styles.pulseContainer}>
+          <View style={styles.pulseDotOuter}>
+            <View style={styles.pulseDotInner} />
+          </View>
+          <Text style={styles.cloudText}>Render 24/7 Cloud</Text>
         </View>
+
+        <Text style={styles.dotSeparator}>•</Text>
+
+        <Text style={styles.timeText} numberOfLines={1}>
+          {isSyncing ? syncStep || "Connecting to CMS..." : formatTime(lastSyncedAt)}
+        </Text>
       </View>
 
       <TouchableOpacity
@@ -65,7 +60,7 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({
           <ActivityIndicator size="small" color={colors.primary} />
         ) : (
           <View style={styles.buttonContent}>
-            <RefreshCw size={13} color={colors.primary} />
+            <RefreshCw size={12} color={colors.primary} />
             <Text style={styles.syncButtonText}>Sync</Text>
           </View>
         )}
@@ -80,43 +75,59 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: colors.surface,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
     borderBottomWidth: 1,
     borderBottomColor: colors.surfaceBorder,
   },
   left: {
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
+    marginRight: 12,
   },
-  modeRow: {
+  pulseContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
-  modePill: {
-    flexDirection: "row",
+  pulseDotOuter: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.primaryLight,
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6,
+    justifyContent: "center",
   },
-  modeText: {
+  pulseDotInner: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.primary,
+  },
+  cloudText: {
     fontSize: 11,
     fontWeight: "700",
     color: colors.primary,
+    letterSpacing: -0.1,
+  },
+  dotSeparator: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginHorizontal: 8,
   },
   timeText: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textSecondary,
+    fontWeight: "500",
   },
   syncButton: {
-    backgroundColor: colors.primarySubtle,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: 8,
+    backgroundColor: colors.primarySubtle,
     borderWidth: 1,
-    borderColor: colors.primaryLight,
+    borderColor: colors.primaryBorder,
   },
   syncButtonDisabled: {
     opacity: 0.6,
@@ -124,10 +135,10 @@ const styles = StyleSheet.create({
   buttonContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
   },
   syncButtonText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     color: colors.primary,
   },

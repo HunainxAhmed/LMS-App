@@ -13,13 +13,19 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.surfaceBorder,
-          height: 60,
-          paddingBottom: 7,
-          paddingTop: 6,
+          height: 64,
+          paddingBottom: 10,
+          paddingTop: 8,
+          shadowColor: colors.shadowColor,
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.03,
+          shadowRadius: 6,
+          elevation: 4,
         },
         tabBarLabelStyle: {
           fontSize: 10,
-          fontWeight: "600",
+          fontWeight: "700",
+          letterSpacing: 0.2,
         },
       }}
     >
@@ -27,42 +33,42 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => <Home color={color} size={size - 3} />,
+          tabBarIcon: ({ color }) => <Home color={color} size={20} />,
         }}
       />
       <Tabs.Screen
         name="courses"
         options={{
           title: "Attendance",
-          tabBarIcon: ({ color, size }) => <BarChart3 color={color} size={size - 3} />,
+          tabBarIcon: ({ color }) => <BarChart3 color={color} size={20} />,
         }}
       />
       <Tabs.Screen
         name="assignments"
         options={{
           title: "Assignments",
-          tabBarIcon: ({ color, size }) => <Clock color={color} size={size - 3} />,
+          tabBarIcon: ({ color }) => <Clock color={color} size={20} />,
         }}
       />
       <Tabs.Screen
         name="lectures"
         options={{
           title: "Lectures",
-          tabBarIcon: ({ color, size }) => <BookOpen color={color} size={size - 3} />,
+          tabBarIcon: ({ color }) => <BookOpen color={color} size={20} />,
         }}
       />
       <Tabs.Screen
         name="downloads"
         options={{
           title: "Downloads",
-          tabBarIcon: ({ color, size }) => <FolderDown color={color} size={size - 3} />,
+          tabBarIcon: ({ color }) => <FolderDown color={color} size={20} />,
         }}
       />
       <Tabs.Screen
         name="results"
         options={{
           title: "Results",
-          tabBarIcon: ({ color, size }) => <Award color={color} size={size - 3} />,
+          tabBarIcon: ({ color }) => <Award color={color} size={20} />,
         }}
       />
     </Tabs>

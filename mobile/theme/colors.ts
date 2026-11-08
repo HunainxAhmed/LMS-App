@@ -1,43 +1,48 @@
 export const colors = {
-  // Brand accents: Refined Emerald / Slate university executive palette
-  primary: "#059669",        // Emerald 600
-  primaryHover: "#047857",   // Emerald 700
+  // Brand accents: Refined Executive Emerald & Obsidian Slate
+  primary: "#047857",        // Emerald 700 (deep, authoritative)
+  primaryHover: "#065f46",   // Emerald 800
   primaryDark: "#064e3b",    // Emerald 900
   primaryLight: "#d1fae5",   // Emerald 100
   primarySubtle: "#f0fdf4",  // Emerald 50
+  primaryBorder: "#a7f3d0",  // Emerald 200
 
-  // Secondary Accents
-  accentIndigo: "#4f46e5",   // Indigo 600
-  accentIndigoLight: "#e0e7ff",
-  accentBlue: "#2563eb",     // Blue 600
-  accentBlueLight: "#eff6ff",
+  // Secondary Luxury Accents
+  accentIndigo: "#4338ca",   // Indigo 700
+  accentIndigoSubtle: "#eef2ff",
+  accentBlue: "#1d4ed8",     // Blue 700
+  accentBlueSubtle: "#eff6ff",
 
-  // Backgrounds & Surfaces (Crisp neutrals, comfortable reading)
-  background: "#f8fafc",     // Slate 50
-  surface: "#ffffff",
+  // Backgrounds & Canvas (Ultra clean, modern SaaS aesthetic)
+  background: "#f8fafc",     // Slate 50 (clean airy canvas)
+  surface: "#ffffff",        // Pure crisp white
   surfaceSecondary: "#f1f5f9", // Slate 100
   surfaceTertiary: "#e2e8f0",  // Slate 200
-  surfaceBorder: "#e2e8f0",   // Slate 200 hairline
+  surfaceBorder: "#e2e8f0",   // Hairline Slate 200
   surfaceBorderLight: "#f1f5f9",
+  cardGlassBg: "rgba(255, 255, 255, 0.95)",
 
-  // Text / Typography (High contrast & elegant hierarchy)
-  textPrimary: "#0f172a",    // Slate 900
-  textSecondary: "#475569",  // Slate 600
-  textMuted: "#94a3b8",      // Slate 400
+  // Typography (Authoritative contrast, zero blur)
+  textPrimary: "#0f172a",    // Slate 900 (deep midnight)
+  textSecondary: "#475569",  // Slate 600 (readable body)
+  textMuted: "#94a3b8",      // Slate 400 (refined captions)
   textInverse: "#ffffff",
 
-  // Academic Status Indicators
+  // Academic Status Indicators (Subtle pastels with deep text)
   statusSafe: "#059669",     // Emerald 600
-  statusSafeBg: "#ecfdf5",   // Emerald 50
-  statusSafeBorder: "#a7f3d0",
+  statusSafeBg: "#f0fdf4",   // Emerald 50
+  statusSafeBorder: "#bbf7d0",
+  statusSafeText: "#166534",
 
   statusWarning: "#d97706",  // Amber 600
   statusWarningBg: "#fffbeb", // Amber 50
   statusWarningBorder: "#fde68a",
+  statusWarningText: "#92400e",
 
   statusDanger: "#dc2626",   // Red 600
   statusDangerBg: "#fef2f2", // Red 50
   statusDangerBorder: "#fecaca",
+  statusDangerText: "#991b1b",
 
   // Deadlines & Badges
   badgeTodayBg: "#fee2e2",
@@ -48,54 +53,15 @@ export const colors = {
   badge48hText: "#92400e",
   badgeUpcomingBg: "#eff6ff",
   badgeUpcomingText: "#1d4ed8",
-  badgeCompletedBg: "#ecfdf5",
-  badgeCompletedText: "#065f46",
-};
 
-export const darkColors = {
-  primary: "#10b981",
-  primaryHover: "#34d399",
-  primaryDark: "#064e3b",
-  primaryLight: "#064e3b",
-  primarySubtle: "#022c22",
+  // Attendance Specific Colors
+  presentGreen: "#059669",
+  presentGreenBg: "#ecfdf5",
+  absentRed: "#e11d48",      // Rose 600
+  absentRedBg: "#fff1f2",
+  lateYellow: "#d97706",
+  lateYellowBg: "#fef3c7",
 
-  accentIndigo: "#6366f1",
-  accentIndigoLight: "#1e1b4b",
-  accentBlue: "#3b82f6",
-  accentBlueLight: "#172554",
-
-  background: "#090d16",
-  surface: "#111827",
-  surfaceSecondary: "#1f2937",
-  surfaceTertiary: "#374151",
-  surfaceBorder: "#1f2937",
-  surfaceBorderLight: "#1f2937",
-
-  textPrimary: "#f9fafb",
-  textSecondary: "#9ca3af",
-  textMuted: "#6b7280",
-  textInverse: "#111827",
-
-  statusSafe: "#10b981",
-  statusSafeBg: "#064e3b",
-  statusSafeBorder: "#059669",
-
-  statusWarning: "#f59e0b",
-  statusWarningBg: "#451a03",
-  statusWarningBorder: "#b45309",
-
-  statusDanger: "#ef4444",
-  statusDangerBg: "#450a0a",
-  statusDangerBorder: "#dc2626",
-
-  badgeTodayBg: "#450a0a",
-  badgeTodayText: "#fca5a5",
-  badge24hBg: "#431407",
-  badge24hText: "#fdba74",
-  badge48hBg: "#451a03",
-  badge48hText: "#fde047",
-  badgeUpcomingBg: "#082f49",
-  badgeUpcomingText: "#7dd3fc",
-  badgeCompletedBg: "#052e16",
-  badgeCompletedText: "#86efac",
+  // Micro-shadows and elevation presets
+  shadowColor: "#0f172a",
 };

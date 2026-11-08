@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { colors } from "../theme/colors";
-import { Bell, ShieldCheck, Settings } from "lucide-react-native";
+import { Bell, Settings, ShieldCheck } from "lucide-react-native";
 
 interface ScreenHeaderProps {
   fullName?: string;
@@ -19,38 +19,53 @@ export const ScreenHeader: React.FC<ScreenHeaderProps> = ({
 }) => {
   const router = useRouter();
 
+  // Generate initials (e.g. "HA")
+  const names = fullName.trim().split(" ");
+  const initials =
+    names.length > 1
+      ? `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase()
+      : (fullName.slice(0, 2) || "BU").toUpperCase();
+
   return (
     <View style={styles.container}>
-      <View style={styles.left}>
-        <Text style={styles.greeting} numberOfLines={1}>
-          Welcome, {fullName.split(" ")[0] || "Student"}
-        </Text>
-        <View style={styles.badgeRow}>
-          <Text style={styles.enrollment}>{enrollment}</Text>
-          <Text style={styles.dot}>•</Text>
-          <Text style={styles.campus}>{campusName}</Text>
+      <View style={styles.leftRow}>
+        {/* Student Avatar */}
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{initials}</Text>
+        </View>
+
+        <View style={styles.studentInfo}>
+          <View style={styles.eyebrowRow}>
+            <Text style={styles.eyebrow}>BAHRIA UNIVERSITY</Text>
+            <View style={styles.verifiedDot} />
+            <Text style={styles.campusText}>{campusName.replace("Campus", "").trim()}</Text>
+          </View>
+          <Text style={styles.studentName} numberOfLines={1}>
+            {fullName}
+          </Text>
+          <Text style={styles.enrollmentText}>{enrollment}</Text>
         </View>
       </View>
 
       <View style={styles.rightActions}>
         <TouchableOpacity
-          style={styles.actionButton}
+          style={styles.actionBtn}
           onPress={() => router.push("/settings" as any)}
           activeOpacity={0.7}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          accessibilityLabel="Open Settings"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityLabel="Settings"
         >
-          <Settings size={20} color={colors.textSecondary} />
+          <Settings size={18} color={colors.textSecondary} />
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.bellButton}
+          style={styles.actionBtn}
           onPress={() => router.push("/notifications" as any)}
           activeOpacity={0.7}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          accessibilityLabel="Open Notifications"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityLabel="Notifications"
         >
-          <Bell size={20} color={colors.textPrimary} />
+          <Bell size={18} color={colors.textPrimary} />
           {unreadCount > 0 ? (
             <View style={styles.counterBadge}>
               <Text style={styles.counterText}>
@@ -69,78 +84,110 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 12,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.surfaceBorder,
   },
-  left: {
-    flex: 1,
-    marginRight: 12,
-  },
-  greeting: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: colors.textPrimary,
-    letterSpacing: -0.3,
-  },
-  badgeRow: {
+  leftRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 2,
+    flex: 1,
+    marginRight: 12,
+    gap: 12,
   },
-  enrollment: {
-    fontSize: 12,
-    fontWeight: "600",
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: colors.primaryDark,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: colors.primaryDark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  avatarText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  studentInfo: {
+    flex: 1,
+  },
+  eyebrowRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginBottom: 2,
+  },
+  eyebrow: {
+    fontSize: 9,
+    fontWeight: "800",
     color: colors.primary,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
   },
-  dot: {
-    fontSize: 12,
+  verifiedDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: colors.textMuted,
+  },
+  campusText: {
+    fontSize: 10,
+    fontWeight: "600",
     color: colors.textMuted,
-    marginHorizontal: 5,
   },
-  campus: {
-    fontSize: 12,
+  studentName: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.textPrimary,
+    letterSpacing: -0.2,
+  },
+  enrollmentText: {
+    fontSize: 11,
     color: colors.textSecondary,
+    fontWeight: "600",
+    fontFamily: "monospace",
+    marginTop: 1,
   },
   rightActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  actionButton: {
+  actionBtn: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: 12,
     backgroundColor: colors.surfaceSecondary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bellButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
   },
   counterBadge: {
     position: "absolute",
-    top: 6,
-    right: 6,
+    top: 5,
+    right: 5,
     backgroundColor: colors.statusDanger,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
+    minWidth: 15,
+    height: 15,
+    borderRadius: 7.5,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 4,
+    paddingHorizontal: 3,
   },
   counterText: {
-    color: "#fff",
-    fontSize: 9,
+    color: "#ffffff",
+    fontSize: 8.5,
     fontWeight: "800",
   },
 });
