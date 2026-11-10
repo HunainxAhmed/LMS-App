@@ -64,6 +64,13 @@ export default function DashboardScreen() {
     queryKey: ["dashboard"],
     queryFn: () => api.getDashboard(),
     retry: 1,
+    refetchInterval: (query: any) => {
+      const d = query.state.data;
+      if (d && (d.attendance_cards?.length > 0 || d.upcoming_assignments?.length > 0)) {
+        return false;
+      }
+      return 3000;
+    },
   });
 
   const { data: notificationsData } = useQuery({

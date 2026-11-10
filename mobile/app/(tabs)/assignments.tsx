@@ -63,6 +63,8 @@ export default function AssignmentsScreen() {
   } = useQuery({
     queryKey: ["courses"],
     queryFn: () => api.getCourses(),
+    refetchInterval: (query: any) =>
+      query.state.data && query.state.data.length > 0 ? false : 3000,
   });
 
   // Fetch all assignments from LMS
@@ -76,6 +78,8 @@ export default function AssignmentsScreen() {
     queryKey: ["assignments"],
     queryFn: () => api.getAssignments(),
     retry: 1,
+    refetchInterval: (query: any) =>
+      query.state.data && query.state.data.length > 0 ? false : 3000,
   });
 
   // Auto-refresh courses and assignments when user navigates to the tab

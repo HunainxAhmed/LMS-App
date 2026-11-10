@@ -21,6 +21,29 @@ from app.notifications.engine import NotificationEngine
 
 logger = logging.getLogger(__name__)
 
+def _resolve_course(raw_name: Optional[str], course_map: Dict[str, Course]) -> Optional[Course]:
+    if not raw_name:
+        return None
+    name_clean = raw_name.strip()
+    name_lower = name_clean.lower()
+    if name_clean in course_map:
+        return course_map[name_clean]
+    if name_lower in course_map:
+        return course_map[name_lower]
+    is_lab = "lab" in name_lower
+    for ck, co in course_map.items():
+        if not ck:
+            continue
+        ck_lower = ck.lower()
+        co_title_lower = co.title.lower() if co.title else ""
+        co_code_lower = co.code.lower() if co.code else ""
+        co_is_lab = "lab" in co_title_lower or "lab" in co_code_lower or "ail" in co_code_lower or "itl" in co_code_lower
+        if is_lab != co_is_lab:
+            continue
+        if ck_lower in name_lower or name_lower in ck_lower:
+            return co
+    return None
+
 async def run_account_sync(
     db: Session,
     account: UniversityAccount,
@@ -264,16 +287,7 @@ async def run_account_sync(
                 Assignment.fingerprint == fp
             ).first()
 
-            c_name_clean = (assign.get("course_name") or "").strip().lower()
-            matched_course = (
-                course_map.get(assign.get("course_name"))
-                or course_map.get(c_name_clean)
-            )
-            if not matched_course:
-                for ck, co in course_map.items():
-                    if ck and (ck in c_name_clean or c_name_clean in ck):
-                        matched_course = co
-                        break
+            matched_course = _resolve_course(assign.get("course_name"), course_map)
             course_id = matched_course.id if matched_course else None
 
             if not db_assign:
@@ -312,7 +326,7 @@ async def run_account_sync(
                 )
                 db.add(db_assign)
             else:
-                if course_id and not db_assign.course_id:
+                if course_id:
                     db_assign.course_id = course_id
                 if not db_assign.course_name and assign.get("course_name"):
                     db_assign.course_name = assign["course_name"]
@@ -354,16 +368,7 @@ async def run_account_sync(
                 LectureMaterial.fingerprint == fp
             ).first()
 
-            m_name_clean = (mat.get("course_name") or "").strip().lower()
-            matched_course = (
-                course_map.get(mat.get("course_name"))
-                or course_map.get(m_name_clean)
-            )
-            if not matched_course:
-                for ck, co in course_map.items():
-                    if ck and (ck in m_name_clean or m_name_clean in ck):
-                        matched_course = co
-                        break
+            matched_course = _resolve_course(mat.get("course_name"), course_map)
             course_id = matched_course.id if matched_course else None
 
             if not db_mat:
@@ -383,7 +388,7 @@ async def run_account_sync(
                 )
                 db.add(db_mat)
             else:
-                if course_id and not db_mat.course_id:
+                if course_id:
                     db_mat.course_id = course_id
                 if not db_mat.course_name and mat.get("course_name"):
                     db_mat.course_name = mat["course_name"]

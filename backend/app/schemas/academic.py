@@ -16,6 +16,7 @@ class CourseSchema(BaseModel):
 
 class AssignmentSchema(BaseModel):
     id: str
+    course_id: Optional[str] = None
     course_name: str
     assignment_number: str
     title: str
@@ -97,6 +98,7 @@ class AttendanceCalculationResponse(BaseModel):
 
 class LectureMaterialSchema(BaseModel):
     id: str
+    course_id: Optional[str] = None
     course_name: str
     week_number: str
     title: str

@@ -74,6 +74,8 @@ export default function LecturesScreen() {
   } = useQuery({
     queryKey: ["courses"],
     queryFn: () => api.getCourses(),
+    refetchInterval: (query: any) =>
+      query.state.data && query.state.data.length > 0 ? false : 3000,
   });
 
   const {
@@ -86,6 +88,8 @@ export default function LecturesScreen() {
     queryKey: ["materials", selectedCourseId],
     queryFn: () => api.getMaterials({ course_id: selectedCourseId || undefined }),
     retry: 1,
+    refetchInterval: (query: any) =>
+      query.state.data && query.state.data.length > 0 ? false : 3000,
   });
 
   // Automatically refresh courses and materials whenever user opens this tab
