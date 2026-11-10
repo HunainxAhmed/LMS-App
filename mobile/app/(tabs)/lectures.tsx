@@ -162,12 +162,15 @@ export default function LecturesScreen() {
     if (!selectedCourseId || !selectedCourse) return [];
 
     let list = rawMaterials.filter((m: any) => {
-      const matchId = m.course_id && m.course_id === selectedCourse.id;
-      const matchName =
-        m.course_name &&
-        selectedCourse.title &&
-        m.course_name.trim().toLowerCase() === selectedCourse.title.trim().toLowerCase();
-      return matchId || matchName;
+      if (m.course_id && m.course_id === selectedCourse.id) return true;
+      const cTitle = (selectedCourse.title || "").trim().toLowerCase();
+      const mName = (m.course_name || "").trim().toLowerCase();
+      if (!mName || !cTitle) return false;
+      if (mName === cTitle) return true;
+      const isMLab = mName.includes("lab");
+      const isCLab = cTitle.includes("lab");
+      if (isMLab !== isCLab) return false;
+      return mName.includes(cTitle) || cTitle.includes(mName);
     });
 
     if (searchQuery.trim()) {

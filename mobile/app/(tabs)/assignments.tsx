@@ -144,12 +144,15 @@ export default function AssignmentsScreen() {
   const courseAssignments = useMemo(() => {
     if (!selectedCourseId || !selectedCourse) return [];
     const list = rawList.filter((a: any) => {
-      const matchId = a.course_id && a.course_id === selectedCourse.id;
-      const matchName =
-        a.course_name &&
-        selectedCourse.title &&
-        a.course_name.trim().toLowerCase() === selectedCourse.title.trim().toLowerCase();
-      return matchId || matchName;
+      if (a.course_id && a.course_id === selectedCourse.id) return true;
+      const cTitle = (selectedCourse.title || "").trim().toLowerCase();
+      const aName = (a.course_name || "").trim().toLowerCase();
+      if (!aName || !cTitle) return false;
+      if (aName === cTitle) return true;
+      const isALab = aName.includes("lab");
+      const isCLab = cTitle.includes("lab");
+      if (isALab !== isCLab) return false;
+      return aName.includes(cTitle) || cTitle.includes(aName);
     });
 
     const parseNum = (item: any) => {

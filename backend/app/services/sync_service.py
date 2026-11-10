@@ -155,6 +155,11 @@ async def run_account_sync(
 
             course_map[db_course.title] = db_course
             course_map[db_course.code] = db_course
+            course_map[db_course.title.strip().lower()] = db_course
+            if db_course.code:
+                course_map[db_course.code.strip().lower()] = db_course
+            if db_course.lms_course_id:
+                course_map[db_course.lms_course_id] = db_course
 
         # 8. Normalize & Save Attendance
         for att in scraped["attendance"]:
@@ -259,7 +264,16 @@ async def run_account_sync(
                 Assignment.fingerprint == fp
             ).first()
 
-            matched_course = course_map.get(assign["course_name"])
+            c_name_clean = (assign.get("course_name") or "").strip().lower()
+            matched_course = (
+                course_map.get(assign.get("course_name"))
+                or course_map.get(c_name_clean)
+            )
+            if not matched_course:
+                for ck, co in course_map.items():
+                    if ck and (ck in c_name_clean or c_name_clean in ck):
+                        matched_course = co
+                        break
             course_id = matched_course.id if matched_course else None
 
             if not db_assign:
@@ -298,6 +312,10 @@ async def run_account_sync(
                 )
                 db.add(db_assign)
             else:
+                if course_id and not db_assign.course_id:
+                    db_assign.course_id = course_id
+                if not db_assign.course_name and assign.get("course_name"):
+                    db_assign.course_name = assign["course_name"]
                 db_assign.deadline = assign.get("deadline")
                 db_assign.deadline_raw = assign.get("deadline_raw", "")
                 db_assign.days_left = assign.get("days_left")
@@ -336,7 +354,16 @@ async def run_account_sync(
                 LectureMaterial.fingerprint == fp
             ).first()
 
-            matched_course = course_map.get(mat["course_name"])
+            m_name_clean = (mat.get("course_name") or "").strip().lower()
+            matched_course = (
+                course_map.get(mat.get("course_name"))
+                or course_map.get(m_name_clean)
+            )
+            if not matched_course:
+                for ck, co in course_map.items():
+                    if ck and (ck in m_name_clean or m_name_clean in ck):
+                        matched_course = co
+                        break
             course_id = matched_course.id if matched_course else None
 
             if not db_mat:
@@ -355,6 +382,11 @@ async def run_account_sync(
                     updated_at=datetime.now(timezone.utc),
                 )
                 db.add(db_mat)
+            else:
+                if course_id and not db_mat.course_id:
+                    db_mat.course_id = course_id
+                if not db_mat.course_name and mat.get("course_name"):
+                    db_mat.course_name = mat["course_name"]
 
         # 11b. Normalize & Save Official Exam Results & Grades
         exam_data = scraped.get("exam_results", {})

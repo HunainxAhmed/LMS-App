@@ -311,17 +311,18 @@ class ScrapingEngine:
 
             logger.info(f"Discovered {len(results['courses'])} enrolled courses.")
 
-            # Step 4: Bounded concurrent fetching of assignments and materials (only if not already scraped)
-            if (not results["assignments"] or not results["materials"]) and courses_list:
+            # Step 4: Bounded concurrent fetching of assignments and materials for ALL enrolled courses
+            if courses_list:
                 if on_progress:
                     await on_progress("Fetching assignments & course material...")
 
-                semaphore = asyncio.Semaphore(3)
+                semaphore = asyncio.Semaphore(4)
 
                 async def fetch_course_data(course: Dict[str, str]):
                     async with semaphore:
                         c_name = course["name"]
                         c_val = course["value"]
+                        c_title = course["title"]
                         # Build query string for Bahria LMS offerings
                         # Format: ?s=MjAyNjM%3D&oc=... or direct query string
                         c_query = ""
@@ -330,45 +331,43 @@ class ScrapingEngine:
                         elif c_val:
                             c_query = f"s=MjAyNjM%3D&oc={c_val}"
 
-                        # 1. Fetch assignments if missing
-                        if not results["assignments"]:
-                            try:
-                                assign_url = f"{self.lms_base}/Student/Assignments.php"
-                                if c_query:
-                                    assign_url = f"{assign_url}?{c_query}"
+                        # 1. Fetch assignments for this specific course
+                        try:
+                            assign_url = f"{self.lms_base}/Student/Assignments.php"
+                            if c_query:
+                                assign_url = f"{assign_url}?{c_query}"
 
-                                resp = await client.get(assign_url)
-                                if resp.status_code == 200:
-                                    parsed_assigns = parse_assignments_html(resp.text, course["title"], self.lms_base)
-                                    if parsed_assigns:
-                                        results["assignments"].extend(parsed_assigns)
-                                    else:
-                                        # Fallback POST
-                                        post_resp = await client.post(f"{self.lms_base}/Student/Assignments.php", data={"courseId": c_val, "course": c_val})
-                                        if post_resp.status_code == 200:
-                                            results["assignments"].extend(parse_assignments_html(post_resp.text, course["title"], self.lms_base))
-                            except Exception as err:
-                                logger.debug(f"Assignment fetch error for {c_name}: {err}")
+                            resp = await client.get(assign_url, timeout=15.0)
+                            if resp.status_code == 200:
+                                parsed_assigns = parse_assignments_html(resp.text, c_title, self.lms_base)
+                                if parsed_assigns:
+                                    results["assignments"].extend(parsed_assigns)
+                                else:
+                                    # Fallback POST
+                                    post_resp = await client.post(f"{self.lms_base}/Student/Assignments.php", data={"courseId": c_val, "course": c_val}, timeout=15.0)
+                                    if post_resp.status_code == 200:
+                                        results["assignments"].extend(parse_assignments_html(post_resp.text, c_title, self.lms_base))
+                        except Exception as err:
+                            logger.debug(f"Assignment fetch error for {c_name}: {err}")
 
-                        # 2. Fetch lecture materials if missing
-                        if not results["materials"]:
-                            try:
-                                mat_url = f"{self.lms_base}/Student/LectureNotes.php"
-                                if c_query:
-                                    mat_url = f"{mat_url}?{c_query}"
+                        # 2. Fetch lecture materials for this specific course
+                        try:
+                            mat_url = f"{self.lms_base}/Student/LectureNotes.php"
+                            if c_query:
+                                mat_url = f"{mat_url}?{c_query}"
 
-                                resp = await client.get(mat_url)
-                                if resp.status_code == 200:
-                                    parsed_mats = parse_materials_html(resp.text, course["title"], self.lms_base)
-                                    if parsed_mats:
-                                        results["materials"].extend(parsed_mats)
-                                    else:
-                                        # Fallback POST
-                                        post_resp = await client.post(f"{self.lms_base}/Student/LectureNotes.php", data={"courseId": c_val, "course": c_val})
-                                        if post_resp.status_code == 200:
-                                            results["materials"].extend(parse_materials_html(post_resp.text, course["title"], self.lms_base))
-                            except Exception as err:
-                                logger.debug(f"Material fetch error for {c_name}: {err}")
+                            resp = await client.get(mat_url, timeout=15.0)
+                            if resp.status_code == 200:
+                                parsed_mats = parse_materials_html(resp.text, c_title, self.lms_base)
+                                if parsed_mats:
+                                    results["materials"].extend(parsed_mats)
+                                else:
+                                    # Fallback POST
+                                    post_resp = await client.post(f"{self.lms_base}/Student/LectureNotes.php", data={"courseId": c_val, "course": c_val}, timeout=15.0)
+                                    if post_resp.status_code == 200:
+                                        results["materials"].extend(parse_materials_html(post_resp.text, c_title, self.lms_base))
+                        except Exception as err:
+                            logger.debug(f"Material fetch error for {c_name}: {err}")
 
                 await asyncio.gather(*(fetch_course_data(c) for c in courses_list), return_exceptions=True)
 
