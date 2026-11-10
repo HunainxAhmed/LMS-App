@@ -177,10 +177,10 @@ export default function SettingsScreen() {
     try {
       const title = type === "deadline"
         ? "Assignment Deadline Alert ⏳"
-        : "CampusFlow: Test Notification 🔔";
+        : "LMS ∞: Test Notification 🔔";
       const body = type === "deadline"
         ? "Design and Analysis of Algorithm: Assignment 02 is due in 24 hours!"
-        : "Your CampusFlow notification engine is connected and operating reliably!";
+        : "Your LMS ∞ notification engine is connected and operating reliably!";
 
       // 1. Immediately schedule local device notification banner & sound
       try {
@@ -506,7 +506,7 @@ export default function SettingsScreen() {
         <View style={styles.card}>
           <View style={styles.rowBetween}>
             <View style={styles.labelGroup}>
-              <Text style={styles.itemTitle}>CampusFlow Version</Text>
+              <Text style={styles.itemTitle}>LMS ∞ Version</Text>
               <Text style={styles.itemSubtitle}>
                 Installed: v{getCurrentAppVersion()} • Dynamic In-App Updates Enabled
               </Text>
@@ -534,7 +534,7 @@ export default function SettingsScreen() {
         <View style={styles.card}>
           <View style={styles.rowBetween}>
             <View style={styles.labelGroup}>
-              <Text style={styles.itemTitle}>CampusFlow Cloud Engine</Text>
+              <Text style={styles.itemTitle}>LMS ∞ Cloud Engine</Text>
               <Text style={styles.itemSubtitle}>
                 Connected to Render 24/7 Production Server
               </Text>
@@ -568,7 +568,7 @@ export default function SettingsScreen() {
           <TouchableOpacity
             style={styles.logoutButton}
             onPress={() => {
-              Alert.alert("Log Out", "Are you sure you want to log out of CampusFlow?", [
+              Alert.alert("Log Out", "Are you sure you want to log out of LMS ∞?", [
                 { text: "Cancel", style: "cancel" },
                 { text: "Log Out", style: "destructive", onPress: logout },
               ]);
@@ -580,7 +580,7 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={styles.footerNotice}>
-          CampusFlow is an independent unofficial student companion and is not affiliated with Bahria University.
+          LMS ∞ is an independent unofficial student companion and is not affiliated with Bahria University.
         </Text>
       </ScrollView>
 

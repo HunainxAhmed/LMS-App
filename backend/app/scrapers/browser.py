@@ -110,10 +110,10 @@ async def _async_browser_login(
                 submit_selector = "input[name*='btnLogin'], #BodyPH_btnLogin, button:has-text('Sign In'), input[value*='Sign In'], input[value*='Login']"
                 await page.click(submit_selector)
 
-                # Wait for either navigation to Dashboard or for error message to appear
+                # Wait for navigation away from Login.aspx or for error message to appear
                 try:
                     await page.wait_for_function(
-                        "() => window.location.href.toLowerCase().includes('dashboard.aspx') || document.body.innerText.includes('Invalid credentials') || document.body.innerText.includes('Error')",
+                        "() => !window.location.href.toLowerCase().includes('login.aspx') || document.body.innerText.includes('Invalid') || document.body.innerText.includes('Error')",
                         timeout=15000
                     )
                 except Exception:
@@ -123,7 +123,9 @@ async def _async_browser_login(
                 current_url = page.url
                 content = await page.content()
 
-                if "dashboard.aspx" not in current_url.lower():
+                is_login_page = "login.aspx" in current_url.lower()
+
+                if is_login_page:
                     if "invalid credentials" in content.lower() or "invalid" in content.lower():
                         await browser.close()
                         return False, "Invalid Enrollment ID or Password. Please check your Bahria University credentials and campus.", {}, {}

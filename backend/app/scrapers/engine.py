@@ -96,9 +96,9 @@ class ScrapingEngine:
                 follow_redirects=True
             )
 
-            # Check if redirected to authenticated Dashboard
+            # Check if redirected to authenticated portal (/Sys/ or any authenticated page)
             url_lower = str(post_resp.url).lower()
-            if "dashboard.aspx" in url_lower and "login.aspx" not in url_lower:
+            if "login.aspx" not in url_lower and "/sys/" in url_lower:
                 merged_cookies = dict(get_resp.cookies)
                 merged_cookies.update(dict(post_resp.cookies))
 

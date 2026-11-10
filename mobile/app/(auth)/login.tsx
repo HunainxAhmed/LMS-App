@@ -92,7 +92,7 @@ export default function LoginScreen() {
               <Text style={styles.logoBadgeText}>∞</Text>
             </View>
             <Text style={styles.brandTitle}>LMS ∞</Text>
-            <Text style={styles.brandSubtitle}>LMS-Flow • Your University, Limitless.</Text>
+            <Text style={styles.brandSubtitle}>Your University, Limitless.</Text>
             <View style={styles.unofficialPill}>
               <Text style={styles.unofficialText}>Unofficial Bahria Student Companion</Text>
             </View>

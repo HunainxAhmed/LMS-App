@@ -33,12 +33,12 @@ export default function OnboardingScreen() {
       subtitle:
         "No more jumping between Bahria CMS and LMS. View all your assignments, lecture slides, attendance, and deadlines in one fast, beautiful dashboard.",
       icon: <BookOpen size={48} color={colors.primary} />,
-      badge: "CampusFlow Overview",
+      badge: "LMS ∞ Overview",
     },
     {
       title: "Strict Credential Privacy",
       subtitle:
-        "We believe in absolute student privacy. CampusFlow offers a Local-Only Mode where your password never leaves your phone's hardware Android Keystore or iOS Keychain.",
+        "We believe in absolute student privacy. LMS ∞ offers a Local-Only Mode where your password never leaves your phone's hardware Android Keystore or iOS Keychain.",
       icon: <ShieldCheck size={48} color={colors.statusSafe} />,
       badge: "Zero Plaintext Storage",
     },
