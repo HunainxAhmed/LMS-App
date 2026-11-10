@@ -34,20 +34,20 @@ export async function setupNotifications() {
     if (Platform.OS === "android") {
       try {
         await Notifications.setNotificationChannelAsync("academic_alerts", {
-          name: "Academic Updates & Deadlines",
+          name: "LMS ∞ Academic & Deadline Alerts",
           importance: Notifications.AndroidImportance.HIGH,
           vibrationPattern: [0, 250, 250, 250],
-          lightColor: "#0f766e",
+          lightColor: "#059669",
         });
 
         await Notifications.setNotificationChannelAsync("default", {
-          name: "General Notifications",
+          name: "LMS ∞ General Notifications",
           importance: Notifications.AndroidImportance.DEFAULT,
         });
 
-        // Dedicated download progress channel (DEFAULT importance ensures visibility in status bar and drawer)
+        // Dedicated download progress channel
         await Notifications.setNotificationChannelAsync("downloads", {
-          name: "File Downloads & Background Progress",
+          name: "LMS ∞ File Downloads",
           importance: Notifications.AndroidImportance.DEFAULT,
           sound: undefined,
           enableVibrate: false,

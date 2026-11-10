@@ -89,10 +89,10 @@ export default function LoginScreen() {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.logoBadge}>
-              <Text style={styles.logoBadgeText}>CF</Text>
+              <Text style={styles.logoBadgeText}>∞</Text>
             </View>
-            <Text style={styles.brandTitle}>CampusFlow</Text>
-            <Text style={styles.brandSubtitle}>Your University, Organized.</Text>
+            <Text style={styles.brandTitle}>LMS ∞</Text>
+            <Text style={styles.brandSubtitle}>LMS-Flow • Your University, Limitless.</Text>
             <View style={styles.unofficialPill}>
               <Text style={styles.unofficialText}>Unofficial Bahria Student Companion</Text>
             </View>

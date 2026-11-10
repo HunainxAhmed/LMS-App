@@ -36,7 +36,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     });
   } catch (netErr: any) {
     throw new ApiError(
-      `Cannot connect to CampusFlow server at ${baseUrl}. Ensure your PC and phone are on the same Wi-Fi.`,
+      `Unable to connect to LMS ∞ Cloud Server. Please verify your internet connection and try again.`,
       0
     );
   }

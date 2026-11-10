@@ -6,6 +6,7 @@ import {
   saveUniversityCredentials,
   clearUniversityCredentials,
   KEYS,
+  DEFAULT_API_URL,
 } from "../services/storage";
 
 interface AuthState {
@@ -47,7 +48,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true,
   isSyncing: false,
   syncProgressStep: "",
-  serverUrl: "http://192.168.1.104:8000/api/v1",
+  serverUrl: DEFAULT_API_URL,
 
   checkAuth: async () => {
     set({ isLoading: true });

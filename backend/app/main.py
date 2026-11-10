@@ -24,8 +24,31 @@ logging.basicConfig(
 )
 logger = logging.getLogger("campusflow")
 
+def _ensure_playwright_binary():
+    """Background task to ensure Playwright Chromium browser is installed on Linux/Render."""
+    if sys.platform != "win32":
+        try:
+            logger.info("Verifying Playwright Chromium browser binary on host...")
+            import subprocess
+            res = subprocess.run(
+                [sys.executable, "-m", "playwright", "install", "chromium"],
+                capture_output=True,
+                text=True,
+                timeout=180
+            )
+            if res.returncode == 0:
+                logger.info("Playwright Chromium browser successfully installed and verified.")
+            else:
+                logger.warning(f"Playwright install completed with code {res.returncode}: {res.stderr[:200]}")
+        except Exception as e:
+            logger.warning(f"Playwright background verification note: {e}")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup: Ensure Playwright browser binary in background on Linux/Render
+    if sys.platform != "win32":
+        asyncio.create_task(asyncio.to_thread(_ensure_playwright_binary))
+
     # Startup: Initialize Database Tables
     logger.info("Initializing CampusFlow database tables...")
     Base.metadata.create_all(bind=engine)
