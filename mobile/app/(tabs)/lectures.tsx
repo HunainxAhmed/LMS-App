@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
@@ -66,7 +67,11 @@ export default function LecturesScreen() {
   const [offlineMaterials, setOfflineMaterials] = useState<any[] | null>(null);
   const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null);
 
-  const { data: courses } = useQuery({
+  const {
+    data: courses,
+    isLoading: isCoursesLoading,
+    refetch: refetchCourses,
+  } = useQuery({
     queryKey: ["courses"],
     queryFn: () => api.getCourses(),
   });
@@ -82,6 +87,14 @@ export default function LecturesScreen() {
     queryFn: () => api.getMaterials({ course_id: selectedCourseId || undefined }),
     retry: 1,
   });
+
+  // Automatically refresh courses and materials whenever user opens this tab
+  useFocusEffect(
+    useCallback(() => {
+      refetchCourses();
+      refetch();
+    }, [refetchCourses, refetch])
+  );
 
   useEffect(() => {
     if (materials && materials.length > 0 && !selectedCourseId) {
@@ -729,8 +742,9 @@ export default function LecturesScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetching}
+            refreshing={isRefetching || isCoursesLoading}
             onRefresh={() => {
+              refetchCourses();
               refetch();
             }}
             colors={[colors.primary]}

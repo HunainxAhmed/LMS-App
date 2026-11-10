@@ -97,24 +97,37 @@ async def connect_university_account(
     db.commit()
     db.refresh(account)
 
-    # Trigger initial data fetch in background task so student enters the app immediately without waiting
-    async def _bg_initial_sync(acc_id: str, pw: str):
-        bg_db = SessionLocal()
-        try:
-            acc = bg_db.query(UniversityAccount).filter(UniversityAccount.id == acc_id).first()
-            if acc:
-                await run_account_sync(
-                    db=bg_db,
-                    account=acc,
-                    trigger_type="INITIAL_CONNECT",
-                    override_password=pw
-                )
-        except Exception as err:
-            logger.warning(f"Background initial sync note: {err}")
-        finally:
-            bg_db.close()
+    # Populate courses, attendance, and coursework immediately before returning so the dashboard is full
+    try:
+        await asyncio.wait_for(
+            run_account_sync(
+                db=db,
+                account=account,
+                trigger_type="INITIAL_CONNECT",
+                override_password=req.password
+            ),
+            timeout=15.0
+        )
+    except Exception as e:
+        logger.warning(f"Initial sync note during connect: {e}")
+        # Dispatch to background if initial sync took longer than 15 seconds
+        async def _bg_fallback_sync(acc_id: str, pw: str):
+            bg_db = SessionLocal()
+            try:
+                acc = bg_db.query(UniversityAccount).filter(UniversityAccount.id == acc_id).first()
+                if acc:
+                    await run_account_sync(
+                        db=bg_db,
+                        account=acc,
+                        trigger_type="INITIAL_CONNECT",
+                        override_password=pw
+                    )
+            except Exception as err:
+                logger.warning(f"Background fallback sync note: {err}")
+            finally:
+                bg_db.close()
 
-    background_tasks.add_task(_bg_initial_sync, account.id, req.password)
+        background_tasks.add_task(_bg_fallback_sync, account.id, req.password)
 
     return LMSVerifyResponse(
         success=True,

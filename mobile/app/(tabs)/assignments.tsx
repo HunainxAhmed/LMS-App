@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import * as FileSystem from "expo-file-system/legacy";
 import * as DocumentPicker from "expo-document-picker";
@@ -55,7 +56,11 @@ export default function AssignmentsScreen() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Fetch registered courses from LMS
-  const { data: courses, isLoading: isCoursesLoading } = useQuery({
+  const {
+    data: courses,
+    isLoading: isCoursesLoading,
+    refetch: refetchCourses,
+  } = useQuery({
     queryKey: ["courses"],
     queryFn: () => api.getCourses(),
   });
@@ -72,6 +77,14 @@ export default function AssignmentsScreen() {
     queryFn: () => api.getAssignments(),
     retry: 1,
   });
+
+  // Auto-refresh courses and assignments when user navigates to the tab
+  useFocusEffect(
+    useCallback(() => {
+      refetchCourses();
+      refetch();
+    }, [refetchCourses, refetch])
+  );
 
   useEffect(() => {
     if (assignments && assignments.length > 0) {
@@ -423,8 +436,9 @@ export default function AssignmentsScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetching}
+            refreshing={isRefetching || isCoursesLoading}
             onRefresh={() => {
+              refetchCourses();
               refetch();
             }}
             colors={[colors.primary]}
@@ -436,6 +450,31 @@ export default function AssignmentsScreen() {
           <View style={styles.centerLoading}>
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.loadingText}>Loading coursework from Bahria LMS...</Text>
+          </View>
+        ) : cleanCourses.length === 0 ? (
+          <View style={styles.noCourseContainer}>
+            <View style={styles.noCourseIconCircle}>
+              <BookOpen size={36} color={colors.primary} />
+            </View>
+            <Text style={styles.noCourseTitle}>No Registered Courses Found</Text>
+            <Text style={styles.noCourseSubtitle}>
+              Syncing registered courses from Bahria LMS. Tap below to reload.
+            </Text>
+            <TouchableOpacity
+              style={{
+                marginTop: 16,
+                backgroundColor: colors.primary,
+                paddingHorizontal: 24,
+                paddingVertical: 12,
+                borderRadius: 10,
+              }}
+              onPress={() => {
+                refetchCourses();
+                refetch();
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>Reload Courses</Text>
+            </TouchableOpacity>
           </View>
         ) : !selectedCourseId ? (
           <View style={styles.noCourseContainer}>
