@@ -87,9 +87,13 @@ export async function clearUniversityCredentials() {
 // Server Base URL Configuration
 export async function getServerUrl(): Promise<string> {
   const saved = await getSecureItem(KEYS.SERVER_URL);
-  if (saved) return saved;
-  if (Platform.OS === "web" && typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
-    return "http://localhost:8000/api/v1";
+  // Auto-purge any stale developer local Wi-Fi IP so phones always connect to production cloud
+  if (saved && (saved.includes("192.168.") || saved.includes("10.0.") || saved.includes("localhost") || saved.includes("127.0.0.1"))) {
+    await deleteSecureItem(KEYS.SERVER_URL);
+    return DEFAULT_API_URL;
+  }
+  if (saved && saved.trim()) {
+    return saved.trim();
   }
   return DEFAULT_API_URL;
 }

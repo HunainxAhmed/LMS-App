@@ -1,16 +1,13 @@
 services:
   - type: web
     name: campusflow-backend
-    runtime: python
-    rootDir: backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    runtime: docker
     plan: free
     region: frankfurt
     healthCheckPath: /health
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.9
+      - key: PORT
+        value: 10000
       - key: APP_TIMEZONE
         value: Asia/Karachi
       - key: PROJECT_NAME

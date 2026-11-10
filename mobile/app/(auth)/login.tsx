@@ -40,15 +40,7 @@ export default function LoginScreen() {
   const [selectedCampus, setSelectedCampus] = useState(CAMPUSES[0]);
   const [showCampusPicker, setShowCampusPicker] = useState(false);
   const [enableCloudMonitoring, setEnableCloudMonitoring] = useState(false);
-
-  // Server LAN IP configuration
-  const [serverUrlInput, setServerUrlInput] = useState(DEFAULT_API_URL);
-  const [showServerConfig, setShowServerConfig] = useState(false);
   const [connectingStep, setConnectingStep] = useState("");
-
-  useEffect(() => {
-    getServerUrl().then((u) => setServerUrlInput(u));
-  }, []);
 
   const handleConnect = async () => {
     if (!enrollment.trim() || !password.trim()) {
@@ -57,7 +49,6 @@ export default function LoginScreen() {
     }
 
     try {
-      await setServerUrl(serverUrlInput);
       setConnectingStep("Connecting to Bahria University Portal...");
 
       await connectStudentComplete({
@@ -80,7 +71,6 @@ export default function LoginScreen() {
 
   const handleDemoConnect = async () => {
     try {
-      await setServerUrl(serverUrlInput);
       setConnectingStep("Loading Demo Bahria Student Experience...");
       await connectDemoStudent();
     } catch (e: any) {
@@ -235,33 +225,6 @@ export default function LoginScreen() {
               <Sparkles size={15} color={colors.primary} />
               <Text style={styles.demoButtonText}>Explore with Demo Student Account</Text>
             </TouchableOpacity>
-
-            {/* Server LAN Configuration Toggle */}
-            <TouchableOpacity
-              style={styles.serverConfigToggle}
-              onPress={() => setShowServerConfig(!showServerConfig)}
-            >
-              <Server size={14} color={colors.textMuted} />
-              <Text style={styles.serverConfigText}>
-                {showServerConfig ? "Hide Server URL" : "Configure Backend Server URL"}
-              </Text>
-            </TouchableOpacity>
-
-            {showServerConfig && (
-              <View style={styles.serverConfigBox}>
-                <Text style={styles.serverConfigLabel}>Backend API Endpoint (Wi-Fi LAN IP):</Text>
-                <TextInput
-                  style={styles.serverInput}
-                  value={serverUrlInput}
-                  onChangeText={setServerUrlInput}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <Text style={styles.serverHint}>
-                  Make sure phone and computer are on the same Wi-Fi. Default is {DEFAULT_API_URL}.
-                </Text>
-              </View>
-            )}
           </View>
 
           {/* Privacy Security Notice */}

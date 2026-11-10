@@ -36,6 +36,16 @@
           "sounds": []
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "67c8e13f-c02d-4403-ada7-efa9a1dfc583"
+      }
+    }
   }
 }
