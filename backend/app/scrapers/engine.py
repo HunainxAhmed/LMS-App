@@ -79,19 +79,21 @@ class ScrapingEngine:
                 if name:
                     form_data[name] = inp.get("value", "")
 
-            # Set user inputs
+            # Set user inputs with authentic ASP.NET WebForms postback
+            form_data["__EVENTTARGET"] = "ctl00$BodyPH$btnLogin"
+            form_data["__EVENTARGUMENT"] = ""
             form_data["ctl00$BodyPH$tbEnrollment"] = self.enrollment
             form_data["ctl00$BodyPH$tbPassword"] = self.password
             form_data["ctl00$BodyPH$ddlInstituteID"] = self.campus_id
             form_data["ctl00$BodyPH$ddlSubUserType"] = "None"
-            form_data["ctl00$BodyPH$btnLogin"] = "Sign In"
             form_data["ctl00$hfJsEnabled"] = "1"
+            if "ctl00$BodyPH$btnLogin" in form_data:
+                del form_data["ctl00$BodyPH$btnLogin"]
 
             post_resp = await client.post(
                 login_url,
                 data=form_data,
                 headers={**COMMON_HEADERS, "Referer": login_url},
-                cookies=dict(get_resp.cookies),
                 timeout=12.0,
                 follow_redirects=True
             )
@@ -99,7 +101,7 @@ class ScrapingEngine:
             # Check if redirected to authenticated portal (/Sys/ or any authenticated page)
             url_lower = str(post_resp.url).lower()
             if "login.aspx" not in url_lower and "/sys/" in url_lower:
-                merged_cookies = dict(get_resp.cookies)
+                merged_cookies = dict(client.cookies)
                 merged_cookies.update(dict(post_resp.cookies))
 
                 # Transition to LMS via GoToLMS.aspx
@@ -107,11 +109,11 @@ class ScrapingEngine:
                     transit_url = f"{self.cms_base}/Sys/Common/GoToLMS.aspx"
                     lms_resp = await client.get(
                         transit_url,
-                        cookies=merged_cookies,
-                        headers=COMMON_HEADERS,
-                        timeout=10.0,
+                        headers={**COMMON_HEADERS, "Referer": str(post_resp.url)},
+                        timeout=12.0,
                         follow_redirects=True
                     )
+                    merged_cookies.update(dict(client.cookies))
                     merged_cookies.update(dict(lms_resp.cookies))
                 except Exception as e:
                     logger.debug(f"GoToLMS transit note: {e}")
@@ -137,11 +139,11 @@ class ScrapingEngine:
                 logger.info("Existing session cookies are valid on CMS & LMS. Using fast HTTP scraper (zero Chromium overhead).")
                 return True, "", {}
 
-            if not need_lms:
-                # Fast CMS-only authentication for instant login connection (1-2s, zero browser overhead)
-                logger.info("Attempting direct HTTP CMS login...")
-                http_success, new_cookies = await self._try_http_login(client)
-                if http_success:
+            # Ultra-fast direct HTTP login & LMS transition (2-3s, zero Chromium RAM overhead)
+            logger.info("Attempting direct HTTP login and LMS transition...")
+            http_success, new_cookies = await self._try_http_login(client)
+            if http_success:
+                if not need_lms or "PHPSESSID" in new_cookies:
                     self.cookies = new_cookies
                     logger.info(f"Direct HTTP login succeeded with cookies: {list(new_cookies.keys())}")
                     return True, "", {}
