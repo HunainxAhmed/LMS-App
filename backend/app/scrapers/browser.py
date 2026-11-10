@@ -130,7 +130,7 @@ async def _async_browser_login(
     password: str,
     campus_name: str,
     campus_id: str = "2",
-    timeout_ms: int = 25000,
+    timeout_ms: int = 45000,
     scrape_data: bool = True,
 ) -> Tuple[bool, str, Dict[str, str], Dict[str, Any]]:
     """
@@ -183,16 +183,25 @@ async def _async_browser_login(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 viewport={"width": 1280, "height": 800}
             )
+            # Speed up page loads across international networks by bypassing heavy images and fonts
+            await context.route(
+                "**/*",
+                lambda route: route.abort() if route.request.resource_type in ["image", "media", "font"] else route.continue_()
+            )
             page: Page = await context.new_page()
 
             try:
                 logger.info("Navigating to Bahria CMS Login page...")
                 login_url = f"{settings.BAHRIA_CMS_BASE_URL.rstrip('/')}/Logins/Student/Login.aspx"
-                await page.goto(login_url, wait_until="domcontentloaded", timeout=timeout_ms)
+                try:
+                    await page.goto(login_url, wait_until="commit", timeout=timeout_ms)
+                except Exception as goto_err:
+                    logger.warning(f"Fast commit goto warning: {goto_err}. Retrying with domcontentloaded...")
+                    await page.goto(login_url, wait_until="domcontentloaded", timeout=timeout_ms)
 
                 # Wait for enrollment input
                 enroll_selector = "input[name*='tbEnrollment'], #BodyPH_tbEnrollment, input[placeholder*='Enrollment']"
-                await page.wait_for_selector(enroll_selector, timeout=8000)
+                await page.wait_for_selector(enroll_selector, timeout=25000)
 
                 # Fill credentials
                 await page.fill(enroll_selector, enrollment)
@@ -223,8 +232,8 @@ async def _async_browser_login(
                 except Exception as e:
                     logger.debug(f"SubUserType selection note: {e}")
 
-                # Click login button
-                submit_selector = "input[name*='btnLogin'], #BodyPH_btnLogin, button:has-text('Sign In'), input[value*='Sign In'], input[value*='Login']"
+                # Click login button (prioritizing #BodyPH_btnLogin which is an ASP.NET LinkButton)
+                submit_selector = "#BodyPH_btnLogin, a:has-text('Sign In'), input[name*='btnLogin'], button:has-text('Sign In'), input[value*='Sign In'], input[value*='Login']"
                 await page.click(submit_selector)
 
                 # Wait for navigation away from Login.aspx or for error message to appear
@@ -298,11 +307,14 @@ async def _async_browser_login(
                 try:
                     logger.info("Transitioning to LMS via GoToLMS.aspx...")
                     lms_transit_url = f"{settings.BAHRIA_CMS_BASE_URL.rstrip('/')}/Sys/Common/GoToLMS.aspx"
-                    await page.goto(lms_transit_url, wait_until="domcontentloaded", timeout=12000)
+                    try:
+                        await page.goto(lms_transit_url, wait_until="commit", timeout=25000)
+                    except Exception:
+                        await page.goto(lms_transit_url, wait_until="domcontentloaded", timeout=25000)
                     await page.wait_for_timeout(2500)
                     if len(context.pages) > 1:
                         lms_page = context.pages[-1]
-                        await lms_page.wait_for_load_state("domcontentloaded", timeout=8000)
+                        await lms_page.wait_for_load_state("domcontentloaded", timeout=12000)
                     logger.info(f"LMS tab active: {lms_page.url}")
 
                     # Check if GoToLMS is blocked by Quality Assurance surveys
@@ -310,7 +322,10 @@ async def _async_browser_login(
                         logger.info("GoToLMS blocked by pending QA surveys. Auto-completing surveys now...")
                         await _auto_complete_pending_surveys(lms_page)
                         logger.info("Retrying GoToLMS.aspx transition...")
-                        await lms_page.goto(lms_transit_url, wait_until="domcontentloaded", timeout=15000)
+                        try:
+                            await lms_page.goto(lms_transit_url, wait_until="commit", timeout=25000)
+                        except Exception:
+                            await lms_page.goto(lms_transit_url, wait_until="domcontentloaded", timeout=25000)
                         await lms_page.wait_for_timeout(2500)
                         if len(context.pages) > 1:
                             lms_page = context.pages[-1]
@@ -485,7 +500,7 @@ async def login_with_browser(
     password: str,
     campus_name: str,
     campus_id: str = "2",
-    timeout_ms: int = 25000,
+    timeout_ms: int = 45000,
     scrape_data: bool = True,
 ) -> Tuple[bool, str, Dict[str, str], Dict[str, Any]]:
     """
