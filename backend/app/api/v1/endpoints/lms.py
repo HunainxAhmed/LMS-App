@@ -1,7 +1,8 @@
+import logging
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
-from app.database.session import get_db
+from app.database.session import get_db, SessionLocal
 from app.api.deps import get_current_user, get_current_university_account
 from app.models.user import User, UniversityAccount, EncryptedCredential
 from app.schemas.auth import (
@@ -13,11 +14,14 @@ from app.core.security import encrypt_credential
 from app.services.sync_service import run_account_sync
 from app.scrapers.engine import ScrapingEngine
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/lms", tags=["University Portal Connection"])
 
 @router.post("/connect", response_model=LMSVerifyResponse)
 async def connect_university_account(
     req: LMSConnectRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -93,17 +97,24 @@ async def connect_university_account(
     db.commit()
     db.refresh(account)
 
-    # Trigger initial data fetch with the credentials in memory
-    try:
-        await run_account_sync(
-            db=db,
-            account=account,
-            trigger_type="INITIAL_CONNECT",
-            override_password=req.password
-        )
-    except Exception as e:
-        # Do not fail connection if initial sync had a minor warning
-        pass
+    # Trigger initial data fetch in background task so student enters the app immediately without waiting
+    async def _bg_initial_sync(acc_id: str, pw: str):
+        bg_db = SessionLocal()
+        try:
+            acc = bg_db.query(UniversityAccount).filter(UniversityAccount.id == acc_id).first()
+            if acc:
+                await run_account_sync(
+                    db=bg_db,
+                    account=acc,
+                    trigger_type="INITIAL_CONNECT",
+                    override_password=pw
+                )
+        except Exception as err:
+            logger.warning(f"Background initial sync note: {err}")
+        finally:
+            bg_db.close()
+
+    background_tasks.add_task(_bg_initial_sync, account.id, req.password)
 
     return LMSVerifyResponse(
         success=True,

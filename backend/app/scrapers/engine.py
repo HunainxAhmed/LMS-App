@@ -146,13 +146,13 @@ class ScrapingEngine:
                     return True, "", {}
 
         # Use Playwright browser automation if sessions are expired or LMS access is needed
-        logger.info("Launching Playwright browser automation for authentication, LMS transition, and coursework sync...")
+        logger.info("Launching fast Playwright browser automation for authentication and LMS transition...")
         browser_success, error_msg, browser_cookies, student_info = await login_with_browser(
             enrollment=self.enrollment,
             password=self.password,
             campus_name=self.campus_name,
             campus_id=self.campus_id,
-            scrape_data=True,
+            scrape_data=False,
         )
 
         if not browser_success:
