@@ -132,6 +132,7 @@ async def _async_browser_login(
     campus_id: str = "2",
     timeout_ms: int = 45000,
     scrape_data: bool = True,
+    need_lms: bool = True,
 ) -> Tuple[bool, str, Dict[str, str], Dict[str, Any]]:
     """
     Internal async implementation of Bahria CMS browser automation.
@@ -302,6 +303,15 @@ async def _async_browser_login(
                         logger.info(f"Playwright scraped {len(scraped_att)} attendance records from CMS.")
                     except Exception as e:
                         logger.warning(f"Browser attendance scrape note: {e}")
+
+                # Fast exit if LMS transition is not required (e.g. initial CMS credential verification)
+                if not need_lms:
+                    all_cookies = await context.cookies()
+                    for c in all_cookies:
+                        cookies_dict[c["name"]] = c["value"]
+                    logger.info(f"Fast CMS session cookies extracted: {list(cookies_dict.keys())}")
+                    await browser.close()
+                    return True, "", cookies_dict, student_info
 
                 # 2. Transition to LMS via GoToLMS or LMS button
                 lms_page = page
@@ -503,6 +513,7 @@ async def login_with_browser(
     campus_id: str = "2",
     timeout_ms: int = 45000,
     scrape_data: bool = True,
+    need_lms: bool = True,
 ) -> Tuple[bool, str, Dict[str, str], Dict[str, Any]]:
     """
     Automates Bahria CMS login via Playwright Chromium.
@@ -525,11 +536,11 @@ async def login_with_browser(
             asyncio.set_event_loop(w_loop)
             try:
                 return w_loop.run_until_complete(
-                    _async_browser_login(enrollment, password, campus_name, campus_id, timeout_ms, scrape_data)
+                    _async_browser_login(enrollment, password, campus_name, campus_id, timeout_ms, scrape_data, need_lms)
                 )
             finally:
                 w_loop.close()
 
         return await asyncio.to_thread(_worker)
 
-    return await _async_browser_login(enrollment, password, campus_name, campus_id, timeout_ms, scrape_data)
+    return await _async_browser_login(enrollment, password, campus_name, campus_id, timeout_ms, scrape_data, need_lms)

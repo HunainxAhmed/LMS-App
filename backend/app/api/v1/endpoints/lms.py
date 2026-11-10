@@ -42,7 +42,7 @@ async def connect_university_account(
         campus_id=campus_id,
     )
 
-    auth_ok, error_msg, student_info = await engine.authenticate()
+    auth_ok, error_msg, student_info = await engine.authenticate(need_lms=False)
     if not auth_ok:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
