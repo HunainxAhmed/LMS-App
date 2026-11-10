@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "LMS ∞",
-    "slug": "lms-flow",
+    "slug": "campusflow",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -12,7 +12,7 @@
       "bundleIdentifier": "pk.edu.bahria.lmsflow"
     },
     "android": {
-      "package": "pk.edu.bahria.lmsflow",
+      "package": "pk.edu.bahria.campusflow.unofficial",
       "adaptiveIcon": {
         "backgroundColor": "#0A0E17",
         "foregroundImage": "./assets/android-icon-foreground.png",

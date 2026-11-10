@@ -1,23 +1,23 @@
 @echo off
-title CampusFlow - EAS Cloud APK Builder
+title LMS ∞ - Android Standalone APK Build
 cd /d "%~dp0mobile"
 
 echo ========================================================
-echo         CampusFlow - Android Standalone APK Build
+echo         LMS ∞ - Android Standalone APK Build
 echo ========================================================
 echo.
-echo 1. EAS will ask you to log in to your free Expo account.
-echo    (Sign up free at https://expo.dev/signup if you haven't yet)
+echo 1. EAS will build your APK with the new anime MHA aura icon
+echo    and LMS ∞ branding.
 echo.
-echo 2. When asked to generate an Android Keystore, select YES.
-echo.
-echo 3. EAS will build the APK in the cloud and provide a direct
-echo    shareable download link for CampusFlow.apk!
+echo 2. Once finished, Expo will output your direct APK download link!
 echo.
 echo ========================================================
 echo.
 
-npx eas-cli build -p android --profile preview
+call npx.cmd eas-cli build -p android --profile preview
 
 echo.
+echo ========================================================
+echo Build process finished. Press any key to exit.
+echo ========================================================
 pause
