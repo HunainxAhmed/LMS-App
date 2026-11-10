@@ -289,18 +289,19 @@ async def _async_browser_login(
                     "materials": [],
                 }
 
-                # 1. Scrape Attendance from CMS StudentWiseAttendance.aspx
-                try:
-                    logger.info("Scraping attendance from CMS StudentWiseAttendance.aspx...")
-                    att_url = f"{settings.BAHRIA_CMS_BASE_URL.rstrip('/')}/Sys/Student/ClassAttendance/StudentWiseAttendance.aspx"
-                    await page.goto(att_url, wait_until="domcontentloaded", timeout=12000)
-                    att_html = await page.content()
-                    from app.scrapers.cms.attendance import parse_attendance_html
-                    scraped_att = parse_attendance_html(att_html)
-                    scraped_data["attendance"] = scraped_att
-                    logger.info(f"Playwright scraped {len(scraped_att)} attendance records from CMS.")
-                except Exception as e:
-                    logger.warning(f"Browser attendance scrape note: {e}")
+                # 1. Scrape Attendance from CMS StudentWiseAttendance.aspx (only if full browser crawl requested)
+                if scrape_data:
+                    try:
+                        logger.info("Scraping attendance from CMS StudentWiseAttendance.aspx...")
+                        att_url = f"{settings.BAHRIA_CMS_BASE_URL.rstrip('/')}/Sys/Student/ClassAttendance/StudentWiseAttendance.aspx"
+                        await page.goto(att_url, wait_until="domcontentloaded", timeout=12000)
+                        att_html = await page.content()
+                        from app.scrapers.cms.attendance import parse_attendance_html
+                        scraped_att = parse_attendance_html(att_html)
+                        scraped_data["attendance"] = scraped_att
+                        logger.info(f"Playwright scraped {len(scraped_att)} attendance records from CMS.")
+                    except Exception as e:
+                        logger.warning(f"Browser attendance scrape note: {e}")
 
                 # 2. Transition to LMS via GoToLMS or LMS button
                 lms_page = page
