@@ -8,6 +8,19 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+CHROMIUM_LOW_MEM_ARGS = [
+    "--no-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--disable-software-rasterizer",
+    "--disable-extensions",
+    "--disable-default-apps",
+    "--disable-sync",
+    "--disable-background-networking",
+    "--js-flags=--max-old-space-size=128",
+    "--disable-blink-features=AutomationControlled",
+]
+
 async def _auto_complete_pending_surveys(page: Page, max_surveys: int = 25):
     """
     Automatically detects and completes mandatory Bahria QA Course & Teacher Evaluation forms
@@ -151,12 +164,7 @@ async def _async_browser_login(
             try:
                 browser: Browser = await p.chromium.launch(
                     headless=True,
-                    args=[
-                        "--no-sandbox",
-                        "--disable-dev-shm-usage",
-                        "--disable-gpu",
-                        "--disable-blink-features=AutomationControlled",
-                    ]
+                    args=CHROMIUM_LOW_MEM_ARGS
                 )
             except Exception as launch_err:
                 err_str = str(launch_err)
@@ -171,12 +179,7 @@ async def _async_browser_login(
                     logger.info("Chromium installed successfully. Relaunching browser...")
                     browser = await p.chromium.launch(
                         headless=True,
-                        args=[
-                            "--no-sandbox",
-                            "--disable-dev-shm-usage",
-                            "--disable-gpu",
-                            "--disable-blink-features=AutomationControlled",
-                        ]
+                        args=CHROMIUM_LOW_MEM_ARGS
                     )
                 else:
                     raise launch_err
@@ -311,6 +314,7 @@ async def _async_browser_login(
                         cookies_dict[c["name"]] = c["value"]
                     logger.info(f"Fast CMS session cookies extracted: {list(cookies_dict.keys())}")
                     await browser.close()
+                    import gc; gc.collect()
                     return True, "", cookies_dict, student_info
 
                 # 2. Transition to LMS via GoToLMS or LMS button
@@ -363,6 +367,7 @@ async def _async_browser_login(
                             cookies_dict[c["name"]] = c["value"]
                         logger.info(f"Fast session renewal cookies extracted: {list(cookies_dict.keys())}")
                         await browser.close()
+                        import gc; gc.collect()
                         return True, "", cookies_dict, student_info
 
                     # 3. Scrape Assignments from LMS Assignments.php
