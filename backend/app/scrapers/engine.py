@@ -41,7 +41,7 @@ class ScrapingEngine:
 
     async def _test_session_validity(self, client: httpx.AsyncClient) -> bool:
         """Checks if current cookies are still valid on CMS and LMS without re-logging in."""
-        if not self.cookies or not any(k in self.cookies for k in ("cms", "PHPSESSID", "SideBarVisible")):
+        if not self.cookies or "cms" not in self.cookies or "PHPSESSID" not in self.cookies:
             return False
 
         try:
@@ -53,8 +53,8 @@ class ScrapingEngine:
 
             # 2. Test LMS validity
             lms_url = f"{self.lms_base}/Student/Assignments.php"
-            lms_resp = await client.get(lms_url, cookies=self.cookies, timeout=8.0, follow_redirects=False)
-            if lms_resp.status_code != 200 or "login" in str(lms_resp.url).lower():
+            lms_resp = await client.get(lms_url, cookies=self.cookies, timeout=8.0, follow_redirects=True)
+            if lms_resp.status_code != 200 or "login" in str(lms_resp.url).lower() or "cms.bahria.edu.pk" in str(lms_resp.url).lower():
                 return False
 
             return True
@@ -137,20 +137,22 @@ class ScrapingEngine:
                 logger.info("Existing session cookies are valid on CMS & LMS. Using fast HTTP scraper (zero Chromium overhead).")
                 return True, "", {}
 
-            logger.info("Attempting direct HTTP CMS login...")
-            http_success, new_cookies = await self._try_http_login(client)
-            if http_success:
-                self.cookies = new_cookies
-                logger.info(f"Direct HTTP login succeeded with cookies: {list(new_cookies.keys())}")
-                return True, "", {}
+            if not need_lms:
+                logger.info("Attempting direct HTTP CMS login...")
+                http_success, new_cookies = await self._try_http_login(client)
+                if http_success:
+                    self.cookies = new_cookies
+                    logger.info(f"Direct HTTP login succeeded with cookies: {list(new_cookies.keys())}")
+                    return True, "", {}
 
-        # Use Playwright browser automation if sessions are expired
-        logger.info("Launching Playwright browser automation for authentication and LMS transition...")
+        # Use Playwright browser automation if sessions are expired or LMS access is needed
+        logger.info("Launching Playwright browser automation for authentication, LMS transition, and coursework sync...")
         browser_success, error_msg, browser_cookies, student_info = await login_with_browser(
             enrollment=self.enrollment,
             password=self.password,
             campus_name=self.campus_name,
             campus_id=self.campus_id,
+            scrape_data=True,
         )
 
         if not browser_success:
@@ -310,64 +312,64 @@ class ScrapingEngine:
             logger.info(f"Discovered {len(results['courses'])} enrolled courses.")
 
             # Step 4: Bounded concurrent fetching of assignments and materials (only if not already scraped)
-            if not results["assignments"] or not results["materials"]:
+            if (not results["assignments"] or not results["materials"]) and courses_list:
                 if on_progress:
                     await on_progress("Fetching assignments & course material...")
 
                 semaphore = asyncio.Semaphore(3)
 
-            async def fetch_course_data(course: Dict[str, str]):
-                async with semaphore:
-                    c_name = course["name"]
-                    c_val = course["value"]
-                    # Build query string for Bahria LMS offerings
-                    # Format: ?s=MjAyNjM%3D&oc=... or direct query string
-                    c_query = ""
-                    if "s=" in c_val or "oc=" in c_val:
-                        c_query = c_val.lstrip("?")
-                    elif c_val:
-                        c_query = f"s=MjAyNjM%3D&oc={c_val}"
+                async def fetch_course_data(course: Dict[str, str]):
+                    async with semaphore:
+                        c_name = course["name"]
+                        c_val = course["value"]
+                        # Build query string for Bahria LMS offerings
+                        # Format: ?s=MjAyNjM%3D&oc=... or direct query string
+                        c_query = ""
+                        if "s=" in c_val or "oc=" in c_val:
+                            c_query = c_val.lstrip("?")
+                        elif c_val:
+                            c_query = f"s=MjAyNjM%3D&oc={c_val}"
 
-                    # 1. Fetch assignments
-                    try:
-                        assign_url = f"{self.lms_base}/Student/Assignments.php"
-                        if c_query:
-                            assign_url = f"{assign_url}?{c_query}"
+                        # 1. Fetch assignments if missing
+                        if not results["assignments"]:
+                            try:
+                                assign_url = f"{self.lms_base}/Student/Assignments.php"
+                                if c_query:
+                                    assign_url = f"{assign_url}?{c_query}"
 
-                        # Bahria LMS serves course offerings via GET with s and oc parameters
-                        resp = await client.get(assign_url)
-                        if resp.status_code == 200:
-                            parsed_assigns = parse_assignments_html(resp.text, course["title"], self.lms_base)
-                            if parsed_assigns:
-                                results["assignments"].extend(parsed_assigns)
-                            else:
-                                # Fallback POST
-                                post_resp = await client.post(f"{self.lms_base}/Student/Assignments.php", data={"courseId": c_val, "course": c_val})
-                                if post_resp.status_code == 200:
-                                    results["assignments"].extend(parse_assignments_html(post_resp.text, course["title"], self.lms_base))
-                    except Exception as err:
-                        logger.debug(f"Assignment fetch error for {c_name}: {err}")
+                                resp = await client.get(assign_url)
+                                if resp.status_code == 200:
+                                    parsed_assigns = parse_assignments_html(resp.text, course["title"], self.lms_base)
+                                    if parsed_assigns:
+                                        results["assignments"].extend(parsed_assigns)
+                                    else:
+                                        # Fallback POST
+                                        post_resp = await client.post(f"{self.lms_base}/Student/Assignments.php", data={"courseId": c_val, "course": c_val})
+                                        if post_resp.status_code == 200:
+                                            results["assignments"].extend(parse_assignments_html(post_resp.text, course["title"], self.lms_base))
+                            except Exception as err:
+                                logger.debug(f"Assignment fetch error for {c_name}: {err}")
 
-                    # 2. Fetch lecture materials
-                    try:
-                        mat_url = f"{self.lms_base}/Student/LectureNotes.php"
-                        if c_query:
-                            mat_url = f"{mat_url}?{c_query}"
+                        # 2. Fetch lecture materials if missing
+                        if not results["materials"]:
+                            try:
+                                mat_url = f"{self.lms_base}/Student/LectureNotes.php"
+                                if c_query:
+                                    mat_url = f"{mat_url}?{c_query}"
 
-                        resp = await client.get(mat_url)
-                        if resp.status_code == 200:
-                            parsed_mats = parse_materials_html(resp.text, course["title"], self.lms_base)
-                            if parsed_mats:
-                                results["materials"].extend(parsed_mats)
-                            else:
-                                # Fallback POST
-                                post_resp = await client.post(f"{self.lms_base}/Student/LectureNotes.php", data={"courseId": c_val, "course": c_val})
-                                if post_resp.status_code == 200:
-                                    results["materials"].extend(parse_materials_html(post_resp.text, course["title"], self.lms_base))
-                    except Exception as err:
-                        logger.debug(f"Material fetch error for {c_name}: {err}")
+                                resp = await client.get(mat_url)
+                                if resp.status_code == 200:
+                                    parsed_mats = parse_materials_html(resp.text, course["title"], self.lms_base)
+                                    if parsed_mats:
+                                        results["materials"].extend(parsed_mats)
+                                    else:
+                                        # Fallback POST
+                                        post_resp = await client.post(f"{self.lms_base}/Student/LectureNotes.php", data={"courseId": c_val, "course": c_val})
+                                        if post_resp.status_code == 200:
+                                            results["materials"].extend(parse_materials_html(post_resp.text, course["title"], self.lms_base))
+                            except Exception as err:
+                                logger.debug(f"Material fetch error for {c_name}: {err}")
 
-            if courses_list:
                 await asyncio.gather(*(fetch_course_data(c) for c in courses_list), return_exceptions=True)
 
             if on_progress:

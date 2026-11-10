@@ -87,11 +87,23 @@ export async function clearUniversityCredentials() {
 // Server Base URL Configuration
 export async function getServerUrl(): Promise<string> {
   const saved = await getSecureItem(KEYS.SERVER_URL);
-  // Auto-purge any stale developer local Wi-Fi IP so phones always connect to production cloud
-  if (saved && (saved.includes("192.168.") || saved.includes("10.0.") || saved.includes("localhost") || saved.includes("127.0.0.1"))) {
-    await deleteSecureItem(KEYS.SERVER_URL);
-    return DEFAULT_API_URL;
+
+  // On native mobile devices (standalone Android APK), purge developer local LAN IP
+  // so student phones always connect directly to the 24/7 Render production cloud
+  if (Platform.OS !== "web") {
+    if (saved && (saved.includes("192.168.") || saved.includes("10.0.") || saved.includes("localhost") || saved.includes("127.0.0.1"))) {
+      await deleteSecureItem(KEYS.SERVER_URL);
+      return DEFAULT_API_URL;
+    }
   }
+
+  // On Local Web browser (http://localhost:8081) for development and instant testing
+  if (Platform.OS === "web") {
+    if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
+      return saved && saved.trim() ? saved.trim() : "http://localhost:8000/api/v1";
+    }
+  }
+
   if (saved && saved.trim()) {
     return saved.trim();
   }
