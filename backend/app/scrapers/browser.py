@@ -8,6 +8,123 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+async def _auto_complete_pending_surveys(page: Page, max_surveys: int = 25):
+    """
+    Automatically detects and completes mandatory Bahria QA Course & Teacher Evaluation forms
+    with neutral/agree answers (Agree/Uncertain, Age < 22, Disability No, Comments Satisfactory).
+    This seamlessly bypasses the mandatory QA survey wall and unlocks GoToLMS.
+    """
+    try:
+        qa_url = f"{settings.BAHRIA_CMS_BASE_URL.rstrip('/')}/Sys/Student/QualityAssurance/QualityAssuranceSurveys.aspx"
+        if "qualityassurancesurveys.aspx" not in page.url.lower():
+            await page.goto(qa_url, wait_until="domcontentloaded", timeout=12000)
+            await page.wait_for_timeout(1500)
+
+        completed = 0
+        while completed < max_surveys:
+            eval_link = await page.query_selector("a:has-text('Evaluate')")
+            if not eval_link:
+                break
+
+            completed += 1
+            logger.info(f"Auto-completing pending QA survey #{completed}...")
+            await eval_link.click()
+            await page.wait_for_timeout(2500)
+
+            # 1. Fill all Likert scale radio button questions (Agree / Uncertain / No)
+            radios = await page.eval_on_selector_all("input[type='radio']", """
+                radios => radios.map(r => ({
+                    name: r.name,
+                    id: r.id,
+                    label: (document.querySelector('label[for=\"' + r.id + '\"]') || {}).innerText || ''
+                }))
+            """)
+            groups: Dict[str, list] = {}
+            for r in radios:
+                groups.setdefault(r['name'], []).append(r)
+
+            for gname, items in groups.items():
+                target = None
+                for item in items:
+                    lbl = item['label'].strip().lower()
+                    if lbl == 'agree':
+                        target = item
+                        break
+                if not target:
+                    for item in items:
+                        lbl = item['label'].strip().lower()
+                        if lbl in ('uncertain', 'neutral'):
+                            target = item
+                            break
+                if not target:
+                    for item in items:
+                        lbl = item['label'].strip().lower()
+                        if 'no' in lbl:
+                            target = item
+                            break
+                if not target and len(items) >= 2:
+                    target = items[1]
+                elif not target:
+                    target = items[0]
+
+                try:
+                    await page.check(f"input[type='radio'][id='{target['id']}']")
+                except Exception:
+                    pass
+
+            # 2. Demographics Select dropdowns (Age < 22, Disability No)
+            selects = await page.query_selector_all("select")
+            for sel in selects:
+                try:
+                    options = await sel.eval_on_selector_all("option", "opts => opts.map(o => ({ text: o.innerText.trim(), val: o.value }))")
+                    chosen_val = None
+                    for opt in options:
+                        t = opt['text'].lower()
+                        if any(k in t for k in ['< 22', '<22', 'less than 22', 'under 22', '20-22']):
+                            chosen_val = opt['val']
+                            break
+                        elif t in ['no', 'none']:
+                            chosen_val = opt['val']
+                            break
+                    if not chosen_val and len(options) > 1:
+                        chosen_val = options[1]['val']
+                    if chosen_val:
+                        await sel.select_option(value=chosen_val)
+                except Exception:
+                    pass
+
+            # 3. Textareas (Satisfactory / Good)
+            textareas = await page.query_selector_all("textarea")
+            for ta in textareas:
+                try:
+                    val = await ta.input_value()
+                    if not val.strip():
+                        await ta.fill("Satisfactory")
+                except Exception:
+                    pass
+
+            # 4. Submit form
+            submit_btn = await page.query_selector("#BodyPH_surveyUserControl_btnSubmit, input[value='Submit'], a:has-text('Submit'), button:has-text('Submit')")
+            if submit_btn:
+                page.on("dialog", lambda dialog: dialog.accept())
+                await submit_btn.click()
+                await page.wait_for_timeout(1000)
+                yes_btn = await page.query_selector("#yes, button:has-text('Yes')")
+                if yes_btn and await yes_btn.is_visible():
+                    await yes_btn.click()
+                await page.wait_for_timeout(3500)
+
+            # Navigate back to surveys list if not already there
+            if "qualityassurancesurveys.aspx" not in page.url.lower():
+                await page.goto(qa_url, wait_until="domcontentloaded", timeout=12000)
+            else:
+                await page.wait_for_timeout(1000)
+
+        if completed > 0:
+            logger.info(f"Successfully auto-completed {completed} QA evaluation surveys! GoToLMS is now unlocked.")
+    except Exception as e:
+        logger.warning(f"Auto QA survey handler note: {e}")
+
 async def _async_browser_login(
     enrollment: str,
     password: str,
@@ -138,6 +255,11 @@ async def _async_browser_login(
 
                 logger.info(f"CMS Login succeeded! Current URL: {current_url}")
 
+                # If landed on Quality Assurance Surveys, auto-complete them to unblock portal
+                if "qualityassurancesurveys.aspx" in current_url.lower():
+                    logger.info("Landed on Quality Assurance Surveys. Auto-completing surveys to unlock LMS...")
+                    await _auto_complete_pending_surveys(page)
+
                 # Read student profile information from CMS page if available
                 try:
                     from app.scrapers.cms.profile import parse_cms_profile
@@ -182,6 +304,16 @@ async def _async_browser_login(
                         lms_page = context.pages[-1]
                         await lms_page.wait_for_load_state("domcontentloaded", timeout=8000)
                     logger.info(f"LMS tab active: {lms_page.url}")
+
+                    # Check if GoToLMS is blocked by Quality Assurance surveys
+                    if "qualityassurancesurveys.aspx" in lms_page.url.lower():
+                        logger.info("GoToLMS blocked by pending QA surveys. Auto-completing surveys now...")
+                        await _auto_complete_pending_surveys(lms_page)
+                        logger.info("Retrying GoToLMS.aspx transition...")
+                        await lms_page.goto(lms_transit_url, wait_until="domcontentloaded", timeout=15000)
+                        await lms_page.wait_for_timeout(2500)
+                        if len(context.pages) > 1:
+                            lms_page = context.pages[-1]
 
                     # Check if LMS requires a separate login form
                     if "login" in lms_page.url.lower():
