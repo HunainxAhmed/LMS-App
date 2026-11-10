@@ -137,15 +137,16 @@ class ScrapingEngine:
                 logger.info("Existing session cookies are valid on CMS & LMS. Using fast HTTP scraper (zero Chromium overhead).")
                 return True, "", {}
 
-            # 1. Try ultra-fast direct HTTP login (1-2s, zero browser overhead)
-            logger.info("Attempting direct HTTP CMS login...")
-            http_success, new_cookies = await self._try_http_login(client)
-            if http_success:
-                self.cookies = new_cookies
-                logger.info(f"Direct HTTP login succeeded with cookies: {list(new_cookies.keys())}")
-                return True, "", {}
+            if not need_lms:
+                # Fast CMS-only authentication for instant login connection (1-2s, zero browser overhead)
+                logger.info("Attempting direct HTTP CMS login...")
+                http_success, new_cookies = await self._try_http_login(client)
+                if http_success:
+                    self.cookies = new_cookies
+                    logger.info(f"Direct HTTP login succeeded with cookies: {list(new_cookies.keys())}")
+                    return True, "", {}
 
-        # Use Playwright browser automation if sessions are expired or LMS access is needed
+        # If LMS access is needed or direct HTTP CMS login failed, launch fast Playwright automation
         logger.info("Launching fast Playwright browser automation for authentication and LMS transition...")
         browser_success, error_msg, browser_cookies, student_info = await login_with_browser(
             enrollment=self.enrollment,
