@@ -10,12 +10,13 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../theme/colors";
 import { useAuthStore } from "../../stores/authStore";
 import { getServerUrl, setServerUrl, DEFAULT_API_URL } from "../../services/storage";
-import { ShieldCheck, Eye, EyeOff, Server, Lock, ChevronDown, Check, Sparkles } from "lucide-react-native";
+import { ShieldCheck, Eye, EyeOff, Server, Lock, ChevronDown, Check } from "lucide-react-native";
 
 const CAMPUSES = [
   { id: "2", name: "Karachi Campus" },
@@ -32,14 +33,14 @@ const CAMPUSES = [
 ];
 
 export default function LoginScreen() {
-  const { connectStudentComplete, connectDemoStudent, isLoading } = useAuthStore();
+  const { connectStudentComplete, isLoading } = useAuthStore();
 
   const [enrollment, setEnrollment] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [selectedCampus, setSelectedCampus] = useState(CAMPUSES[0]);
   const [showCampusPicker, setShowCampusPicker] = useState(false);
-  const [enableCloudMonitoring, setEnableCloudMonitoring] = useState(false);
+  const [enableCloudMonitoring, setEnableCloudMonitoring] = useState(true);
   const [connectingStep, setConnectingStep] = useState("");
 
   const handleConnect = async () => {
@@ -69,16 +70,6 @@ export default function LoginScreen() {
     }
   };
 
-  const handleDemoConnect = async () => {
-    try {
-      setConnectingStep("Loading Demo Bahria Student Experience...");
-      await connectDemoStudent();
-    } catch (e: any) {
-      setConnectingStep("");
-      Alert.alert("Demo Mode Error", e.message || "Failed to load demo student profile.");
-    }
-  };
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
@@ -86,11 +77,13 @@ export default function LoginScreen() {
         style={styles.keyboardView}
       >
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          {/* Header */}
+          {/* Header with Premium App Icon */}
           <View style={styles.header}>
-            <View style={styles.logoBadge}>
-              <Text style={styles.logoBadgeText}>∞</Text>
-            </View>
+            <Image
+              source={require("../../assets/icon.png")}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
             <Text style={styles.brandTitle}>LMS ∞</Text>
             <Text style={styles.brandSubtitle}>Your University, Limitless.</Text>
             <View style={styles.unofficialPill}>
@@ -175,23 +168,23 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Credential Storage Preference Toggle */}
+            {/* Persistent Login & 24/7 Cloud Sync Checkbox */}
             <TouchableOpacity
               style={styles.storageToggleRow}
               onPress={() => setEnableCloudMonitoring(!enableCloudMonitoring)}
               activeOpacity={0.8}
             >
               <View style={[styles.checkbox, enableCloudMonitoring && styles.checkboxActive]}>
-                {enableCloudMonitoring && <Check size={14} color="#fff" />}
+                {enableCloudMonitoring && <Check size={14} color="#fff" strokeWidth={3} />}
               </View>
               <View style={styles.toggleTextContainer}>
                 <Text style={styles.toggleTitle}>
-                  {enableCloudMonitoring ? "Cloud Monitoring (Opt-in)" : "Local-Only Mode (Recommended)"}
+                  Stay Logged In & 24/7 Cloud Sync (Recommended)
                 </Text>
                 <Text style={styles.toggleDesc}>
                   {enableCloudMonitoring
-                    ? "Credentials encrypted with AES-256-GCM on server for 24/7 background deadline alerts."
-                    : "Password stored exclusively in device hardware Keystore/Keychain. No cloud storage."}
+                    ? "Keeps your Bahria portal session active 24/7 so you never get logged out, and sends instant assignment & attendance alerts."
+                    : "Local-only session. You may need to sign in repeatedly when the university portal session expires."}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -213,17 +206,6 @@ export default function LoginScreen() {
               ) : (
                 <Text style={styles.connectButtonText}>Connect Bahria Account</Text>
               )}
-            </TouchableOpacity>
-
-            {/* Demo / Competition Preview Button */}
-            <TouchableOpacity
-              style={styles.demoButton}
-              onPress={handleDemoConnect}
-              disabled={isLoading}
-              activeOpacity={0.8}
-            >
-              <Sparkles size={15} color={colors.primary} />
-              <Text style={styles.demoButtonText}>Explore with Demo Student Account</Text>
             </TouchableOpacity>
           </View>
 
@@ -256,24 +238,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 24,
   },
-  logoBadge: {
-    width: 54,
-    height: 54,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
+  logoImage: {
+    width: 74,
+    height: 74,
+    borderRadius: 20,
+    marginBottom: 12,
     shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  logoBadgeText: {
-    fontSize: 22,
-    fontWeight: "900",
-    color: "#fff",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
   },
   brandTitle: {
     fontSize: 26,
@@ -504,22 +478,5 @@ const styles = StyleSheet.create({
   securityText: {
     fontSize: 11,
     color: colors.textSecondary,
-  },
-  demoButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginTop: 10,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: colors.primarySubtle,
-    borderWidth: 1,
-    borderColor: colors.primaryLight,
-  },
-  demoButtonText: {
-    color: colors.primaryDark,
-    fontSize: 14,
-    fontWeight: "700",
   },
 });
