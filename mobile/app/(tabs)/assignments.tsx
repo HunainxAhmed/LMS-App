@@ -17,6 +17,8 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as DocumentPicker from "expo-document-picker";
 import { colors } from "../../theme/colors";
 import { api } from "../../services/api";
+import { useAuthStore } from "../../stores/authStore";
+import { SyncBanner } from "../../components/SyncBanner";
 import { saveAcademicDataToSQLite, getOfflineAcademicDataFromSQLite } from "../../services/offlineDb";
 import { getDownloadDirectory, getSecureItem, saveSecureItem, KEYS } from "../../services/storage";
 import {
@@ -49,6 +51,7 @@ import {
 } from "lucide-react-native";
 
 export default function AssignmentsScreen() {
+  const { account, isSyncing, syncProgressStep, syncNow } = useAuthStore();
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
   const [showCourseModal, setShowCourseModal] = useState<boolean>(false);
   const [offlineAssignments, setOfflineAssignments] = useState<any[] | null>(null);
@@ -64,8 +67,7 @@ export default function AssignmentsScreen() {
   } = useQuery({
     queryKey: ["courses"],
     queryFn: () => api.getCourses(),
-    refetchInterval: (query: any) =>
-      query.state.data && query.state.data.length > 0 ? false : 3000,
+    refetchInterval: 15000,
   });
 
   // Fetch all assignments from LMS
@@ -79,8 +81,7 @@ export default function AssignmentsScreen() {
     queryKey: ["assignments"],
     queryFn: () => api.getAssignments(),
     retry: 1,
-    refetchInterval: (query: any) =>
-      query.state.data && query.state.data.length > 0 ? false : 3000,
+    refetchInterval: 8000, // Continuous real-time updates every 8s while screen is open
   });
 
   // Auto-refresh courses and assignments when user navigates to the tab
@@ -88,8 +89,43 @@ export default function AssignmentsScreen() {
     useCallback(() => {
       refetchCourses();
       refetch();
-    }, [refetchCourses, refetch])
+
+      // If portal data was synced more than 60 seconds ago, quietly run sync in background
+      const lastSync = account?.last_synced_at;
+      const isStale =
+        !lastSync ||
+        Date.now() - new Date(lastSync.endsWith("Z") ? lastSync : lastSync + "Z").getTime() > 60000;
+
+      if (isStale && !isSyncing) {
+        syncNow().catch(() => {});
+      }
+    }, [refetchCourses, refetch, account?.last_synced_at, isSyncing, syncNow])
   );
+
+  // Periodic check while user stays on this screen: sync if data is stale
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const lastSync = account?.last_synced_at;
+      const isStale =
+        !lastSync ||
+        Date.now() - new Date(lastSync.endsWith("Z") ? lastSync : lastSync + "Z").getTime() > 60000;
+      if (isStale && !isSyncing) {
+        syncNow().catch(() => {});
+      }
+    }, 20000);
+    return () => clearInterval(timer);
+  }, [account?.last_synced_at, isSyncing, syncNow]);
+
+  const onRefresh = async () => {
+    refetchCourses();
+    refetch();
+    if (account && !isSyncing) {
+      syncNow().then(() => {
+        refetchCourses();
+        refetch();
+      });
+    }
+  };
 
   const previousAssignmentIdsRef = React.useRef<Set<string> | null>(null);
 
@@ -423,6 +459,15 @@ export default function AssignmentsScreen() {
         </Text>
       </View>
 
+      {/* Sync Status Banner */}
+      <SyncBanner
+        isSyncing={isSyncing}
+        syncStep={syncProgressStep}
+        lastSyncedAt={account?.last_synced_at}
+        cloudMonitoringEnabled={account?.cloud_monitoring_enabled}
+        onSyncPress={onRefresh}
+      />
+
       {/* Modern Course Selector Bar */}
       <View style={styles.courseSelectContainer}>
         <TouchableOpacity
@@ -522,10 +567,7 @@ export default function AssignmentsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={isRefetching || isCoursesLoading}
-            onRefresh={() => {
-              refetchCourses();
-              refetch();
-            }}
+            onRefresh={onRefresh}
             colors={[colors.primary]}
             tintColor={colors.primary}
           />

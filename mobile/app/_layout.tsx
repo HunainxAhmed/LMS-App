@@ -1,21 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { Stack, useRouter, useSegments } from "expo-router";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { queryClient } from "../services/queryClient";
 import { useAuthStore } from "../stores/authStore";
 import { setupNotifications } from "../services/notifications";
 import { checkForAppUpdate, UpdateInfo } from "../services/updater";
 import { InAppUpdateModal } from "../components/InAppUpdateModal";
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      staleTime: 1000 * 60 * 2, // 2 minutes
-    },
-  },
-});
 
 function RootNavigation() {
   const { isAuthenticated, account, isLoading, checkAuth } = useAuthStore();

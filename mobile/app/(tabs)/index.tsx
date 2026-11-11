@@ -47,13 +47,6 @@ export default function DashboardScreen() {
     showLowAttendance: true,
   });
 
-  // Re-read preferences every time the screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      getHomeScreenPreferences().then(setHomePrefs);
-    }, [])
-  );
-
   const {
     data: dashboard,
     isLoading,
@@ -64,14 +57,40 @@ export default function DashboardScreen() {
     queryKey: ["dashboard"],
     queryFn: () => api.getDashboard(),
     retry: 1,
-    refetchInterval: (query: any) => {
-      const d = query.state.data;
-      if (d && (d.attendance_cards?.length > 0 || d.upcoming_assignments?.length > 0)) {
-        return false;
-      }
-      return 3000;
-    },
+    refetchInterval: 8000, // Continuous real-time polling every 8s while screen is open
   });
+
+  // Re-read preferences and trigger background refresh every time the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      getHomeScreenPreferences().then(setHomePrefs);
+      refetch();
+
+      // If portal data was synced more than 60 seconds ago, quietly run sync in background
+      const lastSync = account?.last_synced_at;
+      const isStale =
+        !lastSync ||
+        Date.now() - new Date(lastSync.endsWith("Z") ? lastSync : lastSync + "Z").getTime() > 60000;
+
+      if (isStale && !isSyncing) {
+        syncNow().catch(() => {});
+      }
+    }, [refetch, account?.last_synced_at, isSyncing, syncNow])
+  );
+
+  // Periodic check while user stays on this screen: sync if data is stale
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const lastSync = account?.last_synced_at;
+      const isStale =
+        !lastSync ||
+        Date.now() - new Date(lastSync.endsWith("Z") ? lastSync : lastSync + "Z").getTime() > 60000;
+      if (isStale && !isSyncing) {
+        syncNow().catch(() => {});
+      }
+    }, 20000);
+    return () => clearInterval(timer);
+  }, [account?.last_synced_at, isSyncing, syncNow]);
 
   const { data: notificationsData } = useQuery({
     queryKey: ["notifications_unread"],

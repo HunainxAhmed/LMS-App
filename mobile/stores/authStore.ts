@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { api } from "../services/api";
 import { registerStoredPushToken } from "../services/notifications";
+import { invalidateAllAcademicQueries } from "../services/queryClient";
 import {
   saveSecureItem,
   getSecureItem,
@@ -338,6 +339,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
           if (status.status === "SUCCESS") {
             set({ syncProgressStep: "All records synchronized successfully! ✅" });
+            invalidateAllAcademicQueries();
             break;
           } else if (status.status === "FAILED") {
             set({ syncProgressStep: status.error_message || "Sync encountered an error" });
@@ -346,6 +348,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         } catch {}
       }
       await get().checkAuth();
+      invalidateAllAcademicQueries();
     } catch (e) {
       console.warn("Sync failed:", e);
     } finally {

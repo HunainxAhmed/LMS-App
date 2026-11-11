@@ -20,6 +20,8 @@ import * as Sharing from "expo-sharing";
 import * as Notifications from "expo-notifications";
 import { colors } from "../../theme/colors";
 import { api } from "../../services/api";
+import { useAuthStore } from "../../stores/authStore";
+import { SyncBanner } from "../../components/SyncBanner";
 import { saveAcademicDataToSQLite, getOfflineAcademicDataFromSQLite } from "../../services/offlineDb";
 import { getDownloadDirectory, getSecureItem, KEYS } from "../../services/storage";
 import {
@@ -51,6 +53,7 @@ import {
 } from "lucide-react-native";
 
 export default function LecturesScreen() {
+  const { account, isSyncing, syncProgressStep, syncNow } = useAuthStore();
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
   const [showCourseModal, setShowCourseModal] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -74,8 +77,7 @@ export default function LecturesScreen() {
   } = useQuery({
     queryKey: ["courses"],
     queryFn: () => api.getCourses(),
-    refetchInterval: (query: any) =>
-      query.state.data && query.state.data.length > 0 ? false : 3000,
+    refetchInterval: 15000,
   });
 
   const {
@@ -88,8 +90,7 @@ export default function LecturesScreen() {
     queryKey: ["materials", selectedCourseId],
     queryFn: () => api.getMaterials({ course_id: selectedCourseId || undefined }),
     retry: 1,
-    refetchInterval: (query: any) =>
-      query.state.data && query.state.data.length > 0 ? false : 3000,
+    refetchInterval: 12000, // Continuous real-time updates every 12s
   });
 
   // Automatically refresh courses and materials whenever user opens this tab
@@ -97,8 +98,42 @@ export default function LecturesScreen() {
     useCallback(() => {
       refetchCourses();
       refetch();
-    }, [refetchCourses, refetch])
+
+      const lastSync = account?.last_synced_at;
+      const isStale =
+        !lastSync ||
+        Date.now() - new Date(lastSync.endsWith("Z") ? lastSync : lastSync + "Z").getTime() > 60000;
+
+      if (isStale && !isSyncing) {
+        syncNow().catch(() => {});
+      }
+    }, [refetchCourses, refetch, account?.last_synced_at, isSyncing, syncNow])
   );
+
+  // Periodic check while user stays on this screen: sync if data is stale
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const lastSync = account?.last_synced_at;
+      const isStale =
+        !lastSync ||
+        Date.now() - new Date(lastSync.endsWith("Z") ? lastSync : lastSync + "Z").getTime() > 60000;
+      if (isStale && !isSyncing) {
+        syncNow().catch(() => {});
+      }
+    }, 20000);
+    return () => clearInterval(timer);
+  }, [account?.last_synced_at, isSyncing, syncNow]);
+
+  const onRefresh = async () => {
+    refetchCourses();
+    refetch();
+    if (account && !isSyncing) {
+      syncNow().then(() => {
+        refetchCourses();
+        refetch();
+      });
+    }
+  };
 
   useEffect(() => {
     if (materials && materials.length > 0 && !selectedCourseId) {
@@ -666,6 +701,15 @@ export default function LecturesScreen() {
         </View>
       </View>
 
+      {/* Sync Status Banner */}
+      <SyncBanner
+        isSyncing={isSyncing}
+        syncStep={syncProgressStep}
+        lastSyncedAt={account?.last_synced_at}
+        cloudMonitoringEnabled={account?.cloud_monitoring_enabled}
+        onSyncPress={onRefresh}
+      />
+
       {/* Prominent Course Selector Dropdown (No 'All Enrolled Courses' mix) */}
       <View style={styles.courseSelectContainer}>
         <Text style={styles.courseSelectLabel}>SELECT COURSE:</Text>
@@ -823,10 +867,7 @@ export default function LecturesScreen() {
         refreshControl={
           <RefreshControl
             refreshing={isRefetching || isCoursesLoading}
-            onRefresh={() => {
-              refetchCourses();
-              refetch();
-            }}
+            onRefresh={onRefresh}
             colors={[colors.primary]}
             tintColor={colors.primary}
           />

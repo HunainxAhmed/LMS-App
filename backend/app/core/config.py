@@ -40,9 +40,9 @@ class Settings(BaseSettings):
     BAHRIA_LMS_BASE_URL: str = "https://lms.bahria.edu.pk"
     PORTAL_REQUEST_TIMEOUT: int = 20
 
-    # Synchronization
-    DEFAULT_SYNC_INTERVAL_MINUTES: int = 15
-    MIN_SYNC_INTERVAL_MINUTES: int = 5
+    # Synchronization (continuous near real-time cloud tracking)
+    DEFAULT_SYNC_INTERVAL_MINUTES: int = 2
+    MIN_SYNC_INTERVAL_MINUTES: int = 1
     MAX_CONCURRENT_SYNCS: int = 4
 
     # Push notifications

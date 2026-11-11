@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,9 +10,12 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { colors } from "../../theme/colors";
 import { api } from "../../services/api";
+import { useAuthStore } from "../../stores/authStore";
+import { SyncBanner } from "../../components/SyncBanner";
 import { saveAcademicDataToSQLite, getOfflineAcademicDataFromSQLite } from "../../services/offlineDb";
 import { getSecureItem, saveSecureItem } from "../../services/storage";
 import { notifyAttendanceUpdate } from "../../services/notifications";
@@ -20,6 +23,7 @@ import { AttendanceCard } from "../../components/AttendanceCard";
 import { ShieldAlert, X, WifiOff, Info, CheckCircle2, AlertTriangle, XCircle, ShieldCheck } from "lucide-react-native";
 
 export default function CoursesScreen() {
+  const { account, isSyncing, syncProgressStep, syncNow } = useAuthStore();
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
   const [showPolicyModal, setShowPolicyModal] = useState<boolean>(false);
   const [offlineAttendance, setOfflineAttendance] = useState<any[] | null>(null);
@@ -34,7 +38,47 @@ export default function CoursesScreen() {
     queryKey: ["attendance"],
     queryFn: () => api.getAttendance(),
     retry: 1,
+    refetchInterval: 10000, // Continuous real-time updates every 10s
   });
+
+  // Re-fetch attendance and trigger background sync if stale when entering tab
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+
+      const lastSync = account?.last_synced_at;
+      const isStale =
+        !lastSync ||
+        Date.now() - new Date(lastSync.endsWith("Z") ? lastSync : lastSync + "Z").getTime() > 60000;
+
+      if (isStale && !isSyncing) {
+        syncNow().catch(() => {});
+      }
+    }, [refetch, account?.last_synced_at, isSyncing, syncNow])
+  );
+
+  // Periodic check while user stays on this screen: sync if data is stale
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const lastSync = account?.last_synced_at;
+      const isStale =
+        !lastSync ||
+        Date.now() - new Date(lastSync.endsWith("Z") ? lastSync : lastSync + "Z").getTime() > 60000;
+      if (isStale && !isSyncing) {
+        syncNow().catch(() => {});
+      }
+    }, 20000);
+    return () => clearInterval(timer);
+  }, [account?.last_synced_at, isSyncing, syncNow]);
+
+  const onRefresh = async () => {
+    refetch();
+    if (account && !isSyncing) {
+      syncNow().then(() => {
+        refetch();
+      });
+    }
+  };
 
   const previousAttendanceRef = React.useRef<Record<string, { present: number; absent: number; pct: number }> | null>(null);
 
@@ -145,6 +189,15 @@ export default function CoursesScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Sync Status Banner */}
+      <SyncBanner
+        isSyncing={isSyncing}
+        syncStep={syncProgressStep}
+        lastSyncedAt={account?.last_synced_at}
+        cloudMonitoringEnabled={account?.cloud_monitoring_enabled}
+        onSyncPress={onRefresh}
+      />
+
       {/* Filter Tabs */}
       <View style={styles.filterRow}>
         {(["ALL", "SAFE", "WARNING", "CRITICAL"] as const).map((status) => {
@@ -191,9 +244,7 @@ export default function CoursesScreen() {
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
-            onRefresh={() => {
-              refetch();
-            }}
+            onRefresh={onRefresh}
             colors={[colors.primary]}
             tintColor={colors.primary}
           />
