@@ -12,10 +12,11 @@ import { setupNotifications } from "../services/notifications";
 import { checkForAppUpdate, UpdateInfo } from "../services/updater";
 import { InAppUpdateModal } from "../components/InAppUpdateModal";
 import { DownloadToast } from "../components/DownloadToast";
+import { ActiveAlarmRingingModal } from "../components/ActiveAlarmRingingModal";
 
 function RootNavigation() {
   const { isAuthenticated, account, isLoading, checkAuth } = useAuthStore();
-  const { loadAlarms, snoozeAlarm, cancelAlarm } = useAlarmStore();
+  const { loadAlarms, snoozeAlarm, cancelAlarm, triggerRingingAlarm, dismissRingingAlarm } = useAlarmStore();
   const segments = useSegments();
   const router = useRouter();
 
@@ -28,23 +29,65 @@ function RootNavigation() {
     loadAlarms().catch(() => {});
 
     // Listen to notification interactions (lockscreen / notification shade Snooze & Dismiss)
-    let notificationSub: Notifications.Subscription | null = null;
+    let notificationResponseSub: Notifications.Subscription | null = null;
+    let notificationReceivedSub: Notifications.Subscription | null = null;
+
     if (Platform.OS !== "web") {
-      notificationSub = Notifications.addNotificationResponseReceivedListener(async (response) => {
+      // 1. Foreground alarm arrival: triggers interactive ringing modal & vibration
+      notificationReceivedSub = Notifications.addNotificationReceivedListener((notification) => {
+        const data = notification.request.content.data;
+        if (data?.type === "ASSIGNMENT_ALARM" && data?.assignmentId) {
+          triggerRingingAlarm({
+            assignmentId: String(data.assignmentId),
+            courseName: String(data.courseName || "Course"),
+            title: String(data.title || "Assignment"),
+            deadlineRaw: String(data.deadlineRaw || ""),
+            triggerTimestamp: Date.now(),
+            createdAt: Date.now(),
+          });
+        }
+      });
+
+      // 2. Notification interaction from lockscreen or notification tray
+      notificationResponseSub = Notifications.addNotificationResponseReceivedListener(async (response) => {
         const actionId = response.actionIdentifier;
         const data = response.notification.request.content.data;
         if (data?.type === "ASSIGNMENT_ALARM" && data?.assignmentId) {
           const assignId = String(data.assignmentId);
           if (actionId === "SNOOZE_24H") {
             await snoozeAlarm(assignId, 24);
+            dismissRingingAlarm();
           } else if (actionId === "STOP_ALARM") {
             await cancelAlarm(assignId);
+            dismissRingingAlarm();
           } else {
+            triggerRingingAlarm({
+              assignmentId: assignId,
+              courseName: String(data.courseName || "Course"),
+              title: String(data.title || "Assignment"),
+              deadlineRaw: String(data.deadlineRaw || ""),
+              triggerTimestamp: Date.now(),
+              createdAt: Date.now(),
+            });
             router.push("/(tabs)/assignments" as any);
           }
         }
       });
     }
+
+    // 3. Periodic due-alarm checker (guarantees ringing screen pops up when due)
+    const alarmTicker = setInterval(() => {
+      const active = useAlarmStore.getState().activeRingingAlarm;
+      if (active) return;
+      const allAlarms = useAlarmStore.getState().alarms;
+      const now = Date.now();
+      for (const [id, al] of Object.entries(allAlarms)) {
+        if (al.triggerTimestamp <= now && now - al.triggerTimestamp <= 15 * 60 * 1000) {
+          triggerRingingAlarm(al);
+          break;
+        }
+      }
+    }, 3000);
 
     // Quietly check for dynamic in-app updates in the background
     const updateTimer = setTimeout(() => {
@@ -60,7 +103,9 @@ function RootNavigation() {
 
     return () => {
       clearTimeout(updateTimer);
-      if (notificationSub) notificationSub.remove();
+      clearInterval(alarmTicker);
+      if (notificationResponseSub) notificationResponseSub.remove();
+      if (notificationReceivedSub) notificationReceivedSub.remove();
     };
   }, []);
 
@@ -114,6 +159,9 @@ function RootNavigation() {
 
       {/* Floating Modern Download Completion Toast */}
       <DownloadToast />
+
+      {/* Interactive Urgent Assignment Alarm Ringing Modal */}
+      <ActiveAlarmRingingModal />
     </>
   );
 }

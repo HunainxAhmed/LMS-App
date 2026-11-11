@@ -107,20 +107,31 @@ export async function getAlarmForAssignment(assignmentId: string): Promise<Assig
   return alarms[assignmentId] || null;
 }
 
+export const ALARM_CHANNEL_ID = "assignment_alarms_loud_v3";
+
 /**
- * Ensures Android high-priority alarm notification channel is registered.
+ * Ensures Android high-priority alarm notification channel is registered
+ * with native ALARM audio stream and continuous vibration.
  */
 export async function ensureAlarmNotificationChannel(): Promise<void> {
   if (Platform.OS === "android") {
     try {
-      await Notifications.setNotificationChannelAsync("assignment_alarms", {
-        name: "LMS ∞ Assignment Alarms & Reminders",
+      await Notifications.setNotificationChannelAsync(ALARM_CHANNEL_ID, {
+        name: "LMS ∞ Assignment Alarms (High Priority)",
         importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 500, 250, 500, 250, 500],
+        vibrationPattern: [0, 800, 300, 800, 300, 800, 300, 1200],
         sound: "default",
         enableVibrate: true,
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         bypassDnd: true,
+        audioAttributes: {
+          usage: Notifications.AndroidAudioUsage.ALARM,
+          contentType: Notifications.AndroidAudioContentType.SONIFICATION,
+          flags: {
+            enforceAudibility: true,
+            requestHardwareAudioVideoSynchronization: false,
+          },
+        },
         lightColor: "#f59e0b",
       });
 
@@ -188,7 +199,7 @@ export async function scheduleAssignmentAlarm(params: {
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
           date: triggerDate,
-          channelId: Platform.OS === "android" ? "assignment_alarms" : undefined,
+          channelId: Platform.OS === "android" ? ALARM_CHANNEL_ID : undefined,
         },
       });
     } catch (err) {
@@ -280,7 +291,7 @@ export async function snoozeAssignmentAlarm(
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
           date: newTriggerDate,
-          channelId: Platform.OS === "android" ? "assignment_alarms" : undefined,
+          channelId: Platform.OS === "android" ? ALARM_CHANNEL_ID : undefined,
         },
       });
     } catch {}
