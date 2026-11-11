@@ -50,21 +50,25 @@ async def run_account_sync(
     trigger_type: str = "MANUAL",
     force_fresh: bool = False,
     override_password: Optional[str] = None,
+    existing_job: Optional[SyncJob] = None,
 ) -> SyncJob:
     """
     Executes an end-to-end synchronization run for a student university account.
     Integrates scraping, data normalization, change detection, and alert emissions.
     """
-    sync_job = SyncJob(
-        account_id=account.id,
-        trigger_type=trigger_type,
-        status="RUNNING",
-        current_step="Starting synchronization...",
-        started_at=datetime.now(timezone.utc),
-    )
-    db.add(sync_job)
-    db.commit()
-    db.refresh(sync_job)
+    if existing_job:
+        sync_job = existing_job
+    else:
+        sync_job = SyncJob(
+            account_id=account.id,
+            trigger_type=trigger_type,
+            status="RUNNING",
+            current_step="Starting synchronization...",
+            started_at=datetime.now(timezone.utc),
+        )
+        db.add(sync_job)
+        db.commit()
+        db.refresh(sync_job)
 
     try:
         # 1. Determine Password (In-Memory only)

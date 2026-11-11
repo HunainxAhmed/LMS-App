@@ -1,7 +1,7 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated } from "react-native";
 import { colors } from "../theme/colors";
-import { RefreshCw, Cloud, HardDrive } from "lucide-react-native";
+import { RefreshCw, CheckCircle2, ShieldCheck } from "lucide-react-native";
 
 interface SyncBannerProps {
   isSyncing: boolean;
@@ -18,6 +18,62 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({
   cloudMonitoringEnabled = true,
   onSyncPress,
 }) => {
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(0.4)).current;
+
+  // Pulse animation for active sync dot
+  useEffect(() => {
+    let loop: Animated.CompositeAnimation | null = null;
+    if (isSyncing) {
+      loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 650,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 0.35,
+            duration: 650,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      loop.start();
+    } else {
+      pulseAnim.setValue(1);
+    }
+    return () => {
+      if (loop) loop.stop();
+    };
+  }, [isSyncing, pulseAnim]);
+
+  // Step-driven progress bar calculation
+  useEffect(() => {
+    if (!isSyncing) {
+      Animated.timing(progressAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: false,
+      }).start();
+      return;
+    }
+
+    const s = (syncStep || "").toLowerCase();
+    let target = 20;
+    if (s.includes("auth") || s.includes("login")) target = 35;
+    else if (s.includes("attend")) target = 55;
+    else if (s.includes("course") && !s.includes("material")) target = 70;
+    else if (s.includes("assign") || s.includes("material")) target = 85;
+    else if (s.includes("success") || s.includes("up to date") || s.includes("complet")) target = 100;
+
+    Animated.timing(progressAnim, {
+      toValue: target,
+      duration: 500,
+      useNativeDriver: false,
+    }).start();
+  }, [isSyncing, syncStep, progressAnim]);
+
   const formatTime = (iso?: string | null) => {
     if (!iso) return "Never synced";
     try {
@@ -33,52 +89,90 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({
     }
   };
 
+  const isCompleted = (syncStep || "").includes("successfully") || (syncStep || "").includes("✅");
+
   return (
-    <View style={styles.banner}>
-      <View style={styles.left}>
-        <View style={styles.pulseContainer}>
-          <View style={styles.pulseDotOuter}>
-            <View style={styles.pulseDotInner} />
-          </View>
-          <Text style={styles.cloudText}>Render 24/7 Cloud</Text>
+    <View style={styles.bannerWrapper}>
+      <View style={styles.banner}>
+        <View style={styles.left}>
+          {isSyncing ? (
+            <Animated.View style={[styles.pulseContainer, { opacity: pulseAnim }]}>
+              <View style={styles.pulseDotOuter}>
+                <View style={styles.pulseDotInner} />
+              </View>
+              <Text style={styles.cloudTextSyncing}>Syncing Live</Text>
+            </Animated.View>
+          ) : isCompleted ? (
+            <View style={styles.pulseContainer}>
+              <CheckCircle2 size={13} color={colors.primary} />
+              <Text style={styles.cloudText}>Updated</Text>
+            </View>
+          ) : (
+            <View style={styles.pulseContainer}>
+              <View style={styles.pulseDotOuter}>
+                <View style={styles.pulseDotInner} />
+              </View>
+              <Text style={styles.cloudText}>Render 24/7 Cloud</Text>
+            </View>
+          )}
+
+          <Text style={styles.dotSeparator}>•</Text>
+
+          <Text style={[styles.timeText, isSyncing && styles.timeTextSyncing]} numberOfLines={1}>
+            {isSyncing ? syncStep || "Connecting to Bahria portal..." : formatTime(lastSyncedAt)}
+          </Text>
         </View>
 
-        <Text style={styles.dotSeparator}>•</Text>
-
-        <Text style={styles.timeText} numberOfLines={1}>
-          {isSyncing ? syncStep || "Connecting to CMS..." : formatTime(lastSyncedAt)}
-        </Text>
+        <TouchableOpacity
+          style={[styles.syncButton, isSyncing && styles.syncButtonDisabled]}
+          onPress={onSyncPress}
+          disabled={isSyncing}
+          activeOpacity={0.7}
+        >
+          {isSyncing ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <View style={styles.buttonContent}>
+              <RefreshCw size={12} color={colors.primary} />
+              <Text style={styles.syncButtonText}>Sync</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
-      <TouchableOpacity
-        style={[styles.syncButton, isSyncing && styles.syncButtonDisabled]}
-        onPress={onSyncPress}
-        disabled={isSyncing}
-        activeOpacity={0.7}
-      >
-        {isSyncing ? (
-          <ActivityIndicator size="small" color={colors.primary} />
-        ) : (
-          <View style={styles.buttonContent}>
-            <RefreshCw size={12} color={colors.primary} />
-            <Text style={styles.syncButtonText}>Sync</Text>
-          </View>
-        )}
-      </TouchableOpacity>
+      {/* Progress Bar Line */}
+      {isSyncing && (
+        <View style={styles.progressBarTrack}>
+          <Animated.View
+            style={[
+              styles.progressBarFill,
+              {
+                width: progressAnim.interpolate({
+                  inputRange: [0, 100],
+                  outputRange: ["0%", "100%"],
+                }),
+              },
+            ]}
+          />
+        </View>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  bannerWrapper: {
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surfaceBorder,
+    overflow: "hidden",
+  },
   banner: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: colors.surface,
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     paddingVertical: 9,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.surfaceBorder,
   },
   left: {
     flexDirection: "row",
@@ -111,6 +205,12 @@ const styles = StyleSheet.create({
     color: colors.primary,
     letterSpacing: -0.1,
   },
+  cloudTextSyncing: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.primary,
+    letterSpacing: -0.1,
+  },
   dotSeparator: {
     fontSize: 11,
     color: colors.textMuted,
@@ -120,6 +220,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textSecondary,
     fontWeight: "500",
+    flex: 1,
+  },
+  timeTextSyncing: {
+    color: colors.primary,
+    fontWeight: "600",
   },
   syncButton: {
     paddingHorizontal: 12,
@@ -130,7 +235,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primaryBorder,
   },
   syncButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.7,
   },
   buttonContent: {
     flexDirection: "row",
@@ -141,5 +246,15 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: colors.primary,
+  },
+  progressBarTrack: {
+    height: 2.5,
+    backgroundColor: colors.primaryLight,
+    width: "100%",
+  },
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: colors.primary,
+    borderRadius: 1.5,
   },
 });

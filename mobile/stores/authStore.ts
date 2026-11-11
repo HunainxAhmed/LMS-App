@@ -324,23 +324,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   syncNow: async () => {
     if (get().isSyncing) return;
-    set({ isSyncing: true, syncProgressStep: "Connecting to CMS..." });
+    set({ isSyncing: true, syncProgressStep: "Connecting to university portal..." });
     try {
       await api.triggerSync();
-      // Poll sync status briefly until completed
-      for (let i = 0; i < 6; i++) {
-        await new Promise((r) => setTimeout(r, 1500));
-        const status = await api.getSyncStatus();
-        set({ syncProgressStep: status.current_step });
-        if (status.status === "SUCCESS" || status.status === "FAILED") {
-          break;
-        }
+      // Poll sync status smoothly in background for up to 35 seconds
+      const maxAttempts = 25;
+      for (let i = 0; i < maxAttempts; i++) {
+        await new Promise((r) => setTimeout(r, 1200));
+        try {
+          const status = await api.getSyncStatus();
+          if (status.current_step) {
+            set({ syncProgressStep: status.current_step });
+          }
+          if (status.status === "SUCCESS") {
+            set({ syncProgressStep: "All records synchronized successfully! ✅" });
+            break;
+          } else if (status.status === "FAILED") {
+            set({ syncProgressStep: status.error_message || "Sync encountered an error" });
+            break;
+          }
+        } catch {}
       }
       await get().checkAuth();
     } catch (e) {
       console.warn("Sync failed:", e);
     } finally {
-      set({ isSyncing: false, syncProgressStep: "" });
+      setTimeout(() => {
+        set({ isSyncing: false, syncProgressStep: "" });
+      }, 1500);
     }
   },
 

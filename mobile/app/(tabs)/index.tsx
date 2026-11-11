@@ -153,8 +153,12 @@ export default function DashboardScreen() {
 
   const onRefresh = async () => {
     if (!account) return;
-    await syncNow();
-    await refetch();
+    // Immediate cache refresh unblocks pull-down spinner in ~500ms
+    refetch();
+    // Cloud sync runs asynchronously in background with real-time progress bar
+    syncNow().then(() => {
+      refetch();
+    });
   };
 
   const unreadCount = notificationsData?.unread_count || 0;
@@ -192,7 +196,7 @@ export default function DashboardScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetching || isSyncing}
+            refreshing={isRefetching}
             onRefresh={onRefresh}
             colors={[colors.primary]}
             tintColor={colors.primary}
