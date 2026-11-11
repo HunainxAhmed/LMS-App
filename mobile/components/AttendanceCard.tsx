@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, LayoutAnimation, Platform, UIManager } from "react-native";
 import { colors } from "../theme/colors";
 import {
   ShieldCheck,
@@ -11,7 +11,12 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
+  Sparkles,
 } from "lucide-react-native";
+
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 export interface AttendanceSessionItem {
   id: string;
@@ -58,13 +63,18 @@ export const AttendanceCard: React.FC<AttendanceCardProps> = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const [filterType, setFilterType] = useState<"ALL" | "ABSENT" | "PRESENT">("ALL");
 
+  const toggleExpand = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setIsExpanded(!isExpanded);
+  };
+
   const isSafe = riskStatus === "SAFE" || percentage >= 75.0;
-  const isWarning = (riskStatus === "WARNING" || (percentage >= 60.0 && percentage < 75.0)) && !isSafe;
+  const isWarning = (riskStatus === "WARNING" || (percentage >= 65.0 && percentage < 75.0)) && !isSafe;
 
   const statusLabel = isSafe ? "SAFE" : isWarning ? "WARNING" : "CRITICAL";
-  const statusColor = isSafe ? colors.statusSafe : isWarning ? colors.statusWarning : colors.statusDanger;
-  const statusBg = isSafe ? colors.statusSafeBg : isWarning ? colors.statusWarningBg : colors.statusDangerBg;
-  const statusBorder = isSafe ? colors.statusSafeBorder : isWarning ? colors.statusWarningBorder : colors.statusDangerBorder;
+  const statusColor = isSafe ? "#059669" : isWarning ? "#d97706" : "#e11d48";
+  const statusBg = isSafe ? "#ecfdf5" : isWarning ? "#fffbeb" : "#fff1f2";
+  const statusBorder = isSafe ? "#a7f3d0" : isWarning ? "#fde68a" : "#fecdd3";
 
   // Semester completion calculation
   const quotaHours = totalSemesterHours || (creditHours === 2 ? 32 : 48);
@@ -89,7 +99,7 @@ export const AttendanceCard: React.FC<AttendanceCardProps> = ({
               <Text style={styles.codeText}>{courseCode}</Text>
             </View>
             <View style={styles.creditCapsule}>
-              <Text style={styles.creditText}>{creditHours} Cr</Text>
+              <Text style={styles.creditText}>{creditHours} Credits</Text>
             </View>
           </View>
           <Text style={styles.courseTitle} numberOfLines={2}>
@@ -97,7 +107,7 @@ export const AttendanceCard: React.FC<AttendanceCardProps> = ({
           </Text>
           {instructor ? (
             <View style={styles.instructorRow}>
-              <User size={11} color={colors.textMuted} />
+              <User size={12} color="#64748b" />
               <Text style={styles.instructorText} numberOfLines={1}>
                 {instructor}
               </Text>
@@ -105,44 +115,41 @@ export const AttendanceCard: React.FC<AttendanceCardProps> = ({
           ) : null}
         </View>
 
-        {/* Circular / Rounded Percentage Badge */}
+        {/* Circular / Rounded Modern Percentage Badge */}
         <View style={[styles.pctGauge, { backgroundColor: statusBg, borderColor: statusBorder }]}>
           <Text style={[styles.pctNumber, { color: statusColor }]}>
             {percentage.toFixed(1)}%
           </Text>
-          <View style={styles.statusPillRow}>
-            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-            <Text style={[styles.statusMiniLabel, { color: statusColor }]}>
-              {statusLabel}
-            </Text>
+          <View style={[styles.statusTag, { backgroundColor: statusColor }]}>
+            <Text style={styles.statusTagText}>{statusLabel}</Text>
           </View>
         </View>
       </View>
 
-      {/* Proprietary CampusFlow Safe Skips Shield */}
+      {/* Proprietary Safe Skips Shield Card */}
       <View
         style={[
-          styles.shieldBanner,
-          safeMisses > 0 ? styles.shieldBannerSafe : styles.shieldBannerWarning,
+          styles.shieldCard,
+          safeMisses > 0 ? styles.shieldCardSafe : styles.shieldCardWarning,
         ]}
       >
-        <View style={styles.shieldIconContainer}>
+        <View style={styles.shieldIconWrap}>
           {safeMisses > 0 ? (
-            <ShieldCheck size={18} color={colors.primary} />
+            <ShieldCheck size={20} color="#059669" />
           ) : (
-            <ShieldAlert size={18} color={colors.statusWarning} />
+            <ShieldAlert size={20} color="#d97706" />
           )}
         </View>
-        <View style={styles.shieldTextContainer}>
+        <View style={styles.shieldContent}>
           <Text style={styles.shieldTitle}>
             {safeMisses > 0
-              ? `${safeMisses} Safe Skips Remaining`
-              : "0 Safe Skips Available"}
+              ? `${safeMisses} Safe Miss${safeMisses === 1 ? "" : "es"} Available`
+              : "0 Safe Misses Available"}
           </Text>
           <Text style={styles.shieldSub}>
             {safeMisses > 0
-              ? `You can miss ${safeMisses} more hours and stay above 75% threshold.`
-              : "Attendance is at risk. Attending all remaining lectures is required."}
+              ? `You can miss ${safeMisses} more hours and maintain your 75% threshold.`
+              : "Attendance is in warning zone. Attending all remaining sessions is required."}
           </Text>
         </View>
       </View>
@@ -166,28 +173,25 @@ export const AttendanceCard: React.FC<AttendanceCardProps> = ({
           )}
         </View>
 
-        {/* Micro KPI Row */}
+        {/* Modern 3-Column Micro Stat Pills */}
         <View style={styles.kpiRow}>
-          <View style={styles.kpiItem}>
-            <View style={[styles.kpiDot, { backgroundColor: colors.statusSafe }]} />
-            <Text style={styles.kpiLabel}>
+          <View style={[styles.kpiPill, styles.kpiPillPresent]}>
+            <View style={[styles.kpiDot, { backgroundColor: "#059669" }]} />
+            <Text style={styles.kpiText}>
               <Text style={styles.kpiBold}>{presentHours}h</Text> Present
             </Text>
           </View>
 
-          <View style={styles.kpiItem}>
-            <View style={[styles.kpiDot, { backgroundColor: colors.absentRed }]} />
-            <Text style={styles.kpiLabel}>
-              <Text style={[styles.kpiBold, absentHours > 0 && { color: colors.absentRed }]}>
-                {absentHours}h
-              </Text>{" "}
-              Absent
+          <View style={[styles.kpiPill, absentHours > 0 ? styles.kpiPillAbsent : styles.kpiPillNeutral]}>
+            <View style={[styles.kpiDot, { backgroundColor: absentHours > 0 ? "#e11d48" : "#94a3b8" }]} />
+            <Text style={[styles.kpiText, absentHours > 0 && { color: "#be123c" }]}>
+              <Text style={styles.kpiBold}>{absentHours}h</Text> Absent
             </Text>
           </View>
 
-          <View style={styles.kpiItemRight}>
+          <View style={[styles.kpiPill, styles.kpiPillNeutral]}>
             <Text style={styles.kpiTotalText}>
-              {totalHours} / {quotaHours}h ({conductedPct}%)
+              {totalHours}/{quotaHours}h ({conductedPct}%)
             </Text>
           </View>
         </View>
@@ -196,19 +200,19 @@ export const AttendanceCard: React.FC<AttendanceCardProps> = ({
       {/* Class Log Expand Trigger */}
       <TouchableOpacity
         style={styles.expandTrigger}
-        onPress={() => setIsExpanded(!isExpanded)}
+        onPress={toggleExpand}
         activeOpacity={0.7}
       >
         <View style={styles.expandLeft}>
-          <Calendar size={13} color={colors.primary} />
+          <Calendar size={14} color={colors.primary} />
           <Text style={styles.expandText}>
             Class History ({presentCount} Present • {absentCount} Absent)
           </Text>
         </View>
         {isExpanded ? (
-          <ChevronUp size={16} color={colors.textSecondary} />
+          <ChevronUp size={16} color="#64748b" />
         ) : (
-          <ChevronDown size={16} color={colors.textSecondary} />
+          <ChevronDown size={16} color="#64748b" />
         )}
       </TouchableOpacity>
 
@@ -233,7 +237,11 @@ export const AttendanceCard: React.FC<AttendanceCardProps> = ({
                     filterType === t && styles.logFilterPillTextActive,
                   ]}
                 >
-                  {t === "ALL" ? `All (${sessions.length})` : t === "ABSENT" ? `Absent (${absentCount})` : `Present (${presentCount})`}
+                  {t === "ALL"
+                    ? `All (${sessions.length})`
+                    : t === "ABSENT"
+                    ? `Absent (${absentCount})`
+                    : `Present (${presentCount})`}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -263,22 +271,22 @@ export const AttendanceCard: React.FC<AttendanceCardProps> = ({
 
                   <View
                     style={[
-                      styles.sessionStatusBadge,
-                      isPresent ? styles.sessionStatusPresent : styles.sessionStatusAbsent,
+                      styles.sessionBadge,
+                      isPresent ? styles.sessionBadgePresent : styles.sessionBadgeAbsent,
                     ]}
                   >
                     {isPresent ? (
-                      <CheckCircle2 size={12} color={colors.statusSafe} />
+                      <CheckCircle2 size={12} color="#059669" />
                     ) : (
-                      <XCircle size={12} color={colors.absentRed} />
+                      <XCircle size={12} color="#e11d48" />
                     )}
                     <Text
                       style={[
-                        styles.sessionStatusText,
-                        isPresent ? { color: colors.statusSafe } : { color: colors.absentRed },
+                        styles.sessionBadgeText,
+                        isPresent ? styles.sessionTextPresent : styles.sessionTextAbsent,
                       ]}
                     >
-                      {isPresent ? "Present" : "Absent"}
+                      {isPresent ? "PRESENT" : "ABSENT"}
                     </Text>
                   </View>
                 </View>
@@ -293,22 +301,22 @@ export const AttendanceCard: React.FC<AttendanceCardProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 14,
+    backgroundColor: "#ffffff",
+    borderRadius: 22,
+    padding: 18,
+    marginBottom: 16,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    shadowColor: colors.shadowColor,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 5,
-    elevation: 1,
+    borderColor: "rgba(15, 23, 42, 0.07)",
+    shadowColor: "#0f172a",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
   },
   headerRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "flex-start",
+    justifyContent: "space-between",
     gap: 12,
   },
   courseMeta: {
@@ -321,181 +329,184 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   codeCapsule: {
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: "rgba(4, 120, 87, 0.1)",
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 0.5,
-    borderColor: colors.surfaceBorder,
+    borderRadius: 8,
   },
   codeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "800",
-    color: colors.textPrimary,
-    letterSpacing: 0.5,
+    color: colors.primary,
+    letterSpacing: 0.4,
   },
   creditCapsule: {
-    backgroundColor: colors.primarySubtle,
+    backgroundColor: "#f1f5f9",
     paddingHorizontal: 7,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: 8,
   },
   creditText: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: "700",
-    color: colors.primary,
+    color: "#64748b",
   },
   courseTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "800",
-    color: colors.textPrimary,
-    lineHeight: 20,
+    color: "#0f172a",
+    lineHeight: 22,
     letterSpacing: -0.2,
-    marginBottom: 4,
+    marginBottom: 5,
   },
   instructorRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
   },
   instructorText: {
-    fontSize: 11,
-    color: colors.textSecondary,
+    fontSize: 12,
     fontWeight: "600",
-    textTransform: "uppercase",
+    color: "#64748b",
   },
   pctGauge: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 14,
-    borderWidth: 1,
+    width: 78,
+    height: 78,
+    borderRadius: 20,
+    borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 78,
+    paddingVertical: 4,
   },
   pctNumber: {
     fontSize: 17,
-    fontWeight: "800",
+    fontWeight: "900",
     letterSpacing: -0.5,
   },
-  statusPillRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 2,
+  statusTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 3,
   },
-  statusDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-  },
-  statusMiniLabel: {
+  statusTagText: {
     fontSize: 9,
     fontWeight: "800",
+    color: "#ffffff",
     letterSpacing: 0.5,
   },
-  shieldBanner: {
+  shieldCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    marginTop: 12,
+    padding: 12,
+    borderRadius: 14,
+    marginTop: 14,
     borderWidth: 1,
+    gap: 10,
   },
-  shieldBannerSafe: {
-    backgroundColor: colors.primarySubtle,
-    borderColor: colors.primaryBorder,
+  shieldCardSafe: {
+    backgroundColor: "#f0fdf4",
+    borderColor: "#bbf7d0",
   },
-  shieldBannerWarning: {
-    backgroundColor: colors.statusWarningBg,
-    borderColor: colors.statusWarningBorder,
+  shieldCardWarning: {
+    backgroundColor: "#fffbeb",
+    borderColor: "#fde68a",
   },
-  shieldIconContainer: {
-    width: 32,
-    height: 32,
+  shieldIconWrap: {
+    width: 36,
+    height: 36,
     borderRadius: 10,
     backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  shieldTextContainer: {
+  shieldContent: {
     flex: 1,
   },
   shieldTitle: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "800",
-    color: colors.textPrimary,
+    color: "#0f172a",
+    marginBottom: 2,
   },
   shieldSub: {
-    fontSize: 10.5,
-    color: colors.textSecondary,
-    marginTop: 1,
-    lineHeight: 14,
+    fontSize: 11,
+    color: "#475569",
+    lineHeight: 15,
   },
   trackContainer: {
-    marginTop: 12,
+    marginTop: 14,
   },
   progressBar: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.surfaceTertiary,
+    height: 8,
+    backgroundColor: "#e2e8f0",
+    borderRadius: 6,
     flexDirection: "row",
     overflow: "hidden",
+    marginBottom: 10,
   },
   progressPresent: {
-    height: "100%",
-    backgroundColor: colors.statusSafe,
+    backgroundColor: "#059669",
+    borderRadius: 6,
   },
   progressAbsent: {
-    height: "100%",
-    backgroundColor: colors.absentRed,
+    backgroundColor: "#e11d48",
+    borderRadius: 6,
   },
   kpiRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 8,
-    gap: 14,
+    justifyContent: "space-between",
+    gap: 6,
   },
-  kpiItem: {
+  kpiPill: {
     flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
     gap: 5,
   },
-  kpiItemRight: {
-    marginLeft: "auto",
+  kpiPillPresent: {
+    backgroundColor: "#ecfdf5",
+  },
+  kpiPillAbsent: {
+    backgroundColor: "#fff1f2",
+  },
+  kpiPillNeutral: {
+    backgroundColor: "#f1f5f9",
   },
   kpiDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
   },
-  kpiLabel: {
+  kpiText: {
     fontSize: 11,
-    color: colors.textSecondary,
+    color: "#334155",
+    fontWeight: "600",
   },
   kpiBold: {
-    fontWeight: "700",
-    color: colors.textPrimary,
+    fontWeight: "800",
   },
   kpiTotalText: {
     fontSize: 11,
-    color: colors.textMuted,
-    fontWeight: "600",
+    fontWeight: "700",
+    color: "#64748b",
   },
   expandTrigger: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 14,
     paddingTop: 12,
-    marginTop: 12,
     borderTopWidth: 1,
-    borderTopColor: colors.surfaceBorder,
+    borderTopColor: "rgba(15, 23, 42, 0.06)",
   },
   expandLeft: {
     flexDirection: "row",
@@ -509,9 +520,11 @@ const styles = StyleSheet.create({
   },
   expandedLog: {
     marginTop: 10,
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: 12,
+    backgroundColor: "#f8fafc",
+    borderRadius: 14,
     padding: 10,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   logFilterRow: {
     flexDirection: "row",
@@ -521,19 +534,19 @@ const styles = StyleSheet.create({
   logFilterPill: {
     paddingHorizontal: 9,
     paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor: colors.surface,
-    borderWidth: 0.5,
-    borderColor: colors.surfaceBorder,
+    borderRadius: 8,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   logFilterPillActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
   logFilterPillText: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: "700",
-    color: colors.textSecondary,
+    color: "#64748b",
   },
   logFilterPillTextActive: {
     color: "#ffffff",
@@ -544,15 +557,15 @@ const styles = StyleSheet.create({
   },
   emptySessionsText: {
     fontSize: 11,
-    color: colors.textMuted,
+    color: "#94a3b8",
   },
   sessionRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 7,
+    justifyContent: "space-between",
+    paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: colors.surfaceBorder,
+    borderBottomColor: "#e2e8f0",
   },
   sessionDateCol: {
     flex: 1,
@@ -560,14 +573,14 @@ const styles = StyleSheet.create({
   sessionDate: {
     fontSize: 12,
     fontWeight: "700",
-    color: colors.textPrimary,
+    color: "#0f172a",
   },
   sessionSlot: {
     fontSize: 10,
-    color: colors.textMuted,
+    color: "#64748b",
     marginTop: 1,
   },
-  sessionStatusBadge: {
+  sessionBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
@@ -575,14 +588,21 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 6,
   },
-  sessionStatusPresent: {
-    backgroundColor: colors.presentGreenBg,
+  sessionBadgePresent: {
+    backgroundColor: "#ecfdf5",
   },
-  sessionStatusAbsent: {
-    backgroundColor: colors.absentRedBg,
+  sessionBadgeAbsent: {
+    backgroundColor: "#fff1f2",
   },
-  sessionStatusText: {
-    fontSize: 10,
+  sessionBadgeText: {
+    fontSize: 9.5,
     fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  sessionTextPresent: {
+    color: "#059669",
+  },
+  sessionTextAbsent: {
+    color: "#e11d48",
   },
 });

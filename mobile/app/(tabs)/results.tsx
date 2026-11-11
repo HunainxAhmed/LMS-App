@@ -35,8 +35,10 @@ import {
   Clock,
   Info,
 } from "lucide-react-native";
+import { useSwipeTabNavigation } from "../../hooks/useSwipeTabNavigation";
 
 export default function ResultsScreen() {
+  const swipeHandlers = useSwipeTabNavigation();
   const [expandedSemesters, setExpandedSemesters] = useState<Record<string, boolean>>({
     "Spring-2026": true,
     "Fall-2025": true,
@@ -186,7 +188,7 @@ export default function ResultsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]} {...swipeHandlers}>
       {/* Top Header */}
       <View style={styles.topBar}>
         <View>

@@ -15,6 +15,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { colors } from "../../theme/colors";
 import { getDownloadDirectory } from "../../services/storage";
+import { SwipeableDownloadCard } from "../../components/SwipeableDownloadCard";
+import { useSwipeTabNavigation } from "../../hooks/useSwipeTabNavigation";
 import {
   DownloadedItem,
   syncAndGetDownloadedFiles,
@@ -46,6 +48,7 @@ import {
 
 export default function DownloadsScreen() {
   const router = useRouter();
+  const swipeHandlers = useSwipeTabNavigation();
   const activeDownload = useDownloadQueueStore();
   const [items, setItems] = useState<DownloadedItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -53,6 +56,10 @@ export default function DownloadsScreen() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [storagePath, setStoragePath] = useState<string>("");
+
+  // Select and Hold Multi-Select State
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const isMultiSelectMode = selectedIds.size > 0;
 
   const loadDownloads = useCallback(async () => {
     try {
@@ -104,6 +111,65 @@ export default function DownloadsScreen() {
           onPress: async () => {
             await deleteDownloadedFile(item.id, item.fileUri);
             setItems((prev) => prev.filter((x) => x.id !== item.id));
+            setSelectedIds((prev) => {
+              const next = new Set(prev);
+              next.delete(item.id);
+              return next;
+            });
+          },
+        },
+      ]
+    );
+  };
+
+  // Multi-select handlers
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleLongPress = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  };
+
+  const handleSelectAll = (filteredCount: number, filteredItems: DownloadedItem[]) => {
+    if (selectedIds.size === filteredCount) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredItems.map((i) => i.id)));
+    }
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedIds.size === 0) return;
+    const count = selectedIds.size;
+    Alert.alert(
+      "Delete Selected Files?",
+      `Are you sure you want to remove ${count} file${count === 1 ? "" : "s"} from your device storage?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: `Delete (${count})`,
+          style: "destructive",
+          onPress: async () => {
+            const toDelete = items.filter((x) => selectedIds.has(x.id));
+            setItems((prev) => prev.filter((x) => !selectedIds.has(x.id)));
+            setSelectedIds(new Set());
+
+            for (const item of toDelete) {
+              await deleteDownloadedFile(item.id, item.fileUri).catch(() => {});
+            }
           },
         },
       ]
@@ -153,6 +219,12 @@ export default function DownloadsScreen() {
   const totalBytes = useMemo(() => {
     return items.reduce((acc, curr) => acc + (curr.fileSize || 0), 0);
   }, [items]);
+
+  const selectedTotalBytes = useMemo(() => {
+    return items
+      .filter((it) => selectedIds.has(it.id))
+      .reduce((sum, it) => sum + (it.fileSize || 0), 0);
+  }, [items, selectedIds]);
 
   const renderFileIcon = (item: DownloadedItem) => {
     const ext = item.fileName.split(".").pop()?.toLowerCase();
@@ -221,16 +293,32 @@ export default function DownloadsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView
+      style={styles.safeArea}
+      edges={["top"]}
+      {...(!isMultiSelectMode ? swipeHandlers : {})}
+    >
       {/* Top Header */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Downloads</Text>
+          <Text style={styles.headerTitle}>
+            {isMultiSelectMode ? `${selectedIds.size} Selected` : "Downloads"}
+          </Text>
           <Text style={styles.headerSubtitle}>
-            Offline files & lecture slides saved on this device
+            {isMultiSelectMode
+              ? "Tap items to toggle selection • Tap Cancel when done"
+              : "Offline files & lecture slides saved on this device"}
           </Text>
         </View>
-        {items.length > 0 && (
+        {isMultiSelectMode ? (
+          <TouchableOpacity
+            style={styles.headerCancelBtn}
+            onPress={() => setSelectedIds(new Set())}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.headerCancelBtnText}>Cancel</Text>
+          </TouchableOpacity>
+        ) : items.length > 0 ? (
           <TouchableOpacity
             style={styles.clearBtn}
             onPress={handleClearAll}
@@ -239,7 +327,7 @@ export default function DownloadsScreen() {
             <Trash2 size={16} color={colors.statusDanger} />
             <Text style={styles.clearBtnText}>Clear All</Text>
           </TouchableOpacity>
-        )}
+        ) : null}
       </View>
 
       <ScrollView
@@ -405,73 +493,60 @@ export default function DownloadsScreen() {
           </View>
         ) : (
           <View style={styles.listContainer}>
-            <Text style={styles.listHeading}>
-              {filteredItems.length} SAVED DOCUMENT{filteredItems.length === 1 ? "" : "S"} (TAP TO OPEN)
-            </Text>
+            <View style={styles.listHeaderRow}>
+              <Text style={styles.listHeading}>
+                {filteredItems.length} SAVED DOCUMENT{filteredItems.length === 1 ? "" : "S"}
+              </Text>
+              {!isMultiSelectMode && (
+                <Text style={styles.swipeHintText}>Hold to select • Swipe left to delete</Text>
+              )}
+            </View>
             {filteredItems.map((item) => (
-              <TouchableOpacity
+              <SwipeableDownloadCard
                 key={item.id}
-                style={styles.fileCard}
+                item={item}
+                isMultiSelectMode={isMultiSelectMode}
+                isSelected={selectedIds.has(item.id)}
+                onToggleSelect={() => handleToggleSelect(item.id)}
+                onLongPress={() => handleLongPress(item.id)}
                 onPress={() => handleOpenFile(item)}
-                activeOpacity={0.7}
-              >
-                {/* File Type Icon */}
-                {renderFileIcon(item)}
-
-                {/* File Details */}
-                <View style={styles.fileInfo}>
-                  <Text style={styles.fileName} numberOfLines={2}>
-                    {item.fileName}
-                  </Text>
-                  <Text style={styles.fileCourse} numberOfLines={1}>
-                    {item.courseName || "Bahria University LMS"}
-                  </Text>
-                  <View style={styles.fileMetaRow}>
-                    <View style={styles.catBadge}>
-                      <Text style={styles.catBadgeText}>
-                        {getCategoryBadgeLabel(item.category)}
-                      </Text>
-                    </View>
-                    <Text style={styles.fileMetaDot}>•</Text>
-                    <Text style={styles.fileSizeText}>
-                      {formatBytes(item.fileSize || 0)}
-                    </Text>
-                    <Text style={styles.fileMetaDot}>•</Text>
-                    <Text style={styles.fileDateText}>
-                      {formatTimestamp(item.downloadedAt)}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Quick Actions */}
-                <View style={styles.cardActions}>
-                  <TouchableOpacity
-                    style={styles.actionIconBtn}
-                    onPress={() => handleOpenFile(item)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <ExternalLink size={17} color={colors.primary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.actionIconBtn}
-                    onPress={() => handleShareFile(item)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Share2 size={16} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.actionIconBtn}
-                    onPress={() => handleDeleteFile(item)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Trash2 size={16} color={colors.textMuted} />
-                  </TouchableOpacity>
-                </View>
-              </TouchableOpacity>
+                onDelete={() => handleDeleteFile(item)}
+                onShare={() => handleShareFile(item)}
+                renderFileIcon={renderFileIcon}
+              />
             ))}
           </View>
         )}
       </ScrollView>
+
+      {/* Floating Batch Selection Bar */}
+      {isMultiSelectMode && (
+        <View style={styles.batchActionBar}>
+          <View style={styles.batchBarInfo}>
+            <Text style={styles.batchBarCount}>{selectedIds.size} Selected</Text>
+            <Text style={styles.batchBarSize}>{formatBytes(selectedTotalBytes)}</Text>
+          </View>
+          <View style={styles.batchBarButtons}>
+            <TouchableOpacity
+              style={styles.batchSelectAllBtn}
+              onPress={() => handleSelectAll(filteredItems.length, filteredItems)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.batchSelectAllBtnText}>
+                {selectedIds.size === filteredItems.length ? "Deselect All" : "Select All"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.batchDeleteBtn}
+              onPress={handleDeleteSelected}
+              activeOpacity={0.8}
+            >
+              <Trash2 size={15} color="#ffffff" />
+              <Text style={styles.batchDeleteBtnText}>Delete ({selectedIds.size})</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -859,5 +934,89 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSecondary,
     justifyContent: "center",
     alignItems: "center",
+  },
+  headerCancelBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  headerCancelBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.textSecondary,
+  },
+  listHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+    paddingHorizontal: 2,
+  },
+  swipeHintText: {
+    fontSize: 10,
+    color: colors.textMuted,
+    fontWeight: "500",
+  },
+  batchActionBar: {
+    position: "absolute",
+    bottom: 20,
+    left: 16,
+    right: 16,
+    backgroundColor: "#0f172a",
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  batchBarInfo: {
+    flexDirection: "column",
+  },
+  batchBarCount: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#ffffff",
+  },
+  batchBarSize: {
+    fontSize: 11,
+    color: "#94a3b8",
+    marginTop: 1,
+  },
+  batchBarButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  batchSelectAllBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#1e293b",
+  },
+  batchSelectAllBtnText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#cbd5e1",
+  },
+  batchDeleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: "#dc2626",
+  },
+  batchDeleteBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#ffffff",
   },
 });

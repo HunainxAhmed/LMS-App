@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { colors } from "../theme/colors";
-import { Clock, Download, FileText, ChevronRight, AlarmClock } from "lucide-react-native";
+import { Clock, Download, FileText, ChevronRight, AlarmClock, BellRing, CheckCircle2 } from "lucide-react-native";
 
 interface AssignmentCardProps {
   id: string;
@@ -41,42 +41,51 @@ export const AssignmentCard: React.FC<AssignmentCardProps> = ({
   onDownloadAttachment,
   onPress,
 }) => {
+  const isSubmitted = personalCompleted || submissionStatus === "SUBMITTED";
   const isMissed =
-    (isPassed || submissionStatus === "OVERDUE" || submissionStatus === "MISSED") &&
-    !personalCompleted &&
-    submissionStatus !== "SUBMITTED";
+    (isPassed || submissionStatus === "OVERDUE" || submissionStatus === "MISSED") && !isSubmitted;
 
-  let badgeText = "Upcoming";
-  let badgeBg = colors.surfaceSecondary;
-  let badgeColor = colors.textSecondary;
+  let badgeText = "Pending";
+  let badgeBg = "#eff6ff";
+  let badgeColor = "#1d4ed8";
+  let dotColor = "#3b82f6";
 
-  if (personalCompleted || submissionStatus === "SUBMITTED") {
+  if (isSubmitted) {
     badgeText = "Submitted";
-    badgeBg = colors.statusSafeBg;
-    badgeColor = colors.statusSafe;
+    badgeBg = "#ecfdf5";
+    badgeColor = "#059669";
+    dotColor = "#10b981";
   } else if (isMissed) {
     badgeText = "Missed";
-    badgeBg = colors.statusDangerBg;
-    badgeColor = colors.statusDanger;
+    badgeBg = "#fff1f2";
+    badgeColor = "#e11d48";
+    dotColor = "#f43f5e";
   } else if (daysLeft !== null && daysLeft !== undefined) {
     if (daysLeft === 0) {
       badgeText = "Due Today";
-      badgeBg = colors.badgeTodayBg;
-      badgeColor = colors.badgeTodayText;
+      badgeBg = "#ffe4e6";
+      badgeColor = "#be123c";
+      dotColor = "#e11d48";
     } else if (daysLeft === 1) {
       badgeText = "Tomorrow";
-      badgeBg = colors.badge24hBg;
-      badgeColor = colors.badge24hText;
+      badgeBg = "#ffedd5";
+      badgeColor = "#c2410c";
+      dotColor = "#f97316";
     } else {
       badgeText = `${daysLeft}d left`;
-      badgeBg = colors.badgeUpcomingBg;
-      badgeColor = colors.badgeUpcomingText;
+      badgeBg = "#eff6ff";
+      badgeColor = "#1d4ed8";
+      dotColor = "#3b82f6";
     }
   }
 
   return (
     <TouchableOpacity
-      style={[styles.card, isMissed && styles.cardMissed]}
+      style={[
+        styles.card,
+        isMissed && styles.cardMissed,
+        isSubmitted && styles.cardSubmitted,
+      ]}
       onPress={onPress}
       activeOpacity={onPress ? 0.75 : 1}
     >
@@ -88,6 +97,7 @@ export const AssignmentCard: React.FC<AssignmentCardProps> = ({
         </View>
 
         <View style={[styles.badge, { backgroundColor: badgeBg }]}>
+          <View style={[styles.statusDot, { backgroundColor: dotColor }]} />
           <Text style={[styles.badgeText, { color: badgeColor }]}>{badgeText}</Text>
         </View>
       </View>
@@ -99,22 +109,22 @@ export const AssignmentCard: React.FC<AssignmentCardProps> = ({
 
       <View style={styles.footerRow}>
         <View style={styles.dateCol}>
-          <Clock size={11} color={isMissed ? colors.statusDanger : colors.textMuted} />
+          <Clock size={12} color={isMissed ? "#e11d48" : "#64748b"} />
           <Text style={[styles.dateText, isMissed && styles.dateTextDanger]} numberOfLines={1}>
             {deadlineRaw || "No deadline stated"}
           </Text>
         </View>
 
         <View style={styles.footerActionRow}>
-          {onSetAlarm && !isMissed && !personalCompleted && submissionStatus !== "SUBMITTED" && (
+          {onSetAlarm && !isMissed && !isSubmitted && (
             <TouchableOpacity
               style={alarmScheduledTime ? styles.alarmChipActive : styles.alarmChip}
               onPress={onSetAlarm}
               activeOpacity={0.7}
             >
               <AlarmClock
-                size={11}
-                color={alarmScheduledTime ? "#b45309" : colors.textSecondary}
+                size={12}
+                color={alarmScheduledTime ? "#b45309" : "#64748b"}
               />
               <Text
                 style={alarmScheduledTime ? styles.alarmChipTextActive : styles.alarmChipText}
@@ -126,7 +136,7 @@ export const AssignmentCard: React.FC<AssignmentCardProps> = ({
                       month: "short",
                       day: "numeric",
                     })}`
-                  : "Alarm"}
+                  : "Set Alarm"}
               </Text>
             </TouchableOpacity>
           )}
@@ -151,27 +161,30 @@ export const AssignmentCard: React.FC<AssignmentCardProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    shadowColor: colors.shadowColor,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 3,
-    elevation: 1,
+    borderColor: "rgba(15, 23, 42, 0.08)",
+    shadowColor: "#0f172a",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   cardMissed: {
-    borderColor: colors.statusDangerBorder,
+    borderColor: "#fecdd3",
     backgroundColor: "#fffafa",
+  },
+  cardSubmitted: {
+    borderColor: "#bbf7d0",
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 6,
+    marginBottom: 8,
   },
   courseTag: {
     flex: 1,
@@ -179,63 +192,70 @@ const styles = StyleSheet.create({
   },
   courseName: {
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "800",
     color: colors.primary,
     textTransform: "uppercase",
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
   },
   badge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: 8,
+  },
+  statusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
   badgeText: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: "800",
     letterSpacing: 0.2,
   },
   title: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "800",
-    color: colors.textPrimary,
-    lineHeight: 19,
+    color: "#0f172a",
+    lineHeight: 21,
     letterSpacing: -0.2,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   footerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: 8,
   },
   dateCol: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
     flex: 1,
   },
   dateText: {
-    fontSize: 11,
-    color: colors.textMuted,
-    fontWeight: "500",
+    fontSize: 11.5,
+    color: "#64748b",
+    fontWeight: "600",
   },
   dateTextDanger: {
-    color: colors.statusDanger,
+    color: "#e11d48",
     fontWeight: "700",
   },
   downloadChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    backgroundColor: colors.primarySubtle,
-    borderWidth: 0.5,
-    borderColor: colors.primaryBorder,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: "rgba(4, 120, 87, 0.08)",
   },
   downloadChipText: {
-    fontSize: 10,
-    fontWeight: "700",
+    fontSize: 10.5,
+    fontWeight: "800",
     color: colors.primary,
   },
   footerActionRow: {
@@ -246,33 +266,33 @@ const styles = StyleSheet.create({
   alarmChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-    backgroundColor: colors.surfaceSecondary,
-    borderWidth: 0.5,
-    borderColor: colors.surfaceBorder,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: "#f1f5f9",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   alarmChipActive: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
     backgroundColor: "#fef3c7",
-    borderWidth: 0.8,
+    borderWidth: 1,
     borderColor: "#f59e0b",
   },
   alarmChipText: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: colors.textSecondary,
+    fontSize: 10.5,
+    fontWeight: "700",
+    color: "#475569",
   },
   alarmChipTextActive: {
-    fontSize: 10,
-    fontWeight: "700",
+    fontSize: 10.5,
+    fontWeight: "800",
     color: "#b45309",
   },
 });

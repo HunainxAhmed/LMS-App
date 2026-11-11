@@ -55,8 +55,10 @@ import {
   AlarmClock,
   Bell,
 } from "lucide-react-native";
+import { useSwipeTabNavigation } from "../../hooks/useSwipeTabNavigation";
 
 export default function AssignmentsScreen() {
+  const swipeHandlers = useSwipeTabNavigation();
   const { account, isSyncing, syncProgressStep, syncNow } = useAuthStore();
   const { alarms } = useAlarmStore();
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
@@ -454,7 +456,7 @@ export default function AssignmentsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]} {...swipeHandlers}>
       {/* Top Header */}
       <View style={styles.topBar}>
         <Text style={styles.screenTitle}>Coursework & Assignments</Text>
@@ -673,8 +675,14 @@ export default function AssignmentsScreen() {
                   ? `#${assign.assignment_number}`
                   : `#${idx + 1}`;
 
+                const cardAccentStyle = isSubmitted
+                  ? styles.cardAccentSubmitted
+                  : isMissed
+                  ? styles.cardAccentMissed
+                  : styles.cardAccentPending;
+
                 return (
-                  <View key={assign.id} style={styles.assignmentCard}>
+                  <View key={assign.id} style={[styles.assignmentCard, cardAccentStyle]}>
                     {/* Top Row: Sequential Number + Title + Status Badges */}
                     <View style={styles.cardHeader}>
                       <View style={styles.cardHeaderLeft}>
@@ -1117,21 +1125,32 @@ const styles = StyleSheet.create({
   /* Sleek Modern Assignment Card */
   assignmentCard: {
     backgroundColor: colors.surface,
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: 20,
+    padding: 16,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 2,
-    elevation: 1,
+    borderColor: colors.cardBorderSubtle,
+    borderLeftWidth: 4,
+    shadowColor: "#0f172a",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    marginBottom: 12,
+  },
+  cardAccentSubmitted: {
+    borderLeftColor: "#059669",
+  },
+  cardAccentPending: {
+    borderLeftColor: "#2563eb",
+  },
+  cardAccentMissed: {
+    borderLeftColor: "#dc2626",
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   cardHeaderLeft: {
     flexDirection: "row",
@@ -1142,172 +1161,178 @@ const styles = StyleSheet.create({
   },
   indexBadge: {
     backgroundColor: colors.surfaceSecondary,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-    minWidth: 28,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    minWidth: 32,
     alignItems: "center",
+    justifyContent: "center",
   },
   indexBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: colors.textSecondary,
-    fontFamily: "monospace",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
   assignmentTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "700",
     color: colors.textPrimary,
-    lineHeight: 18,
+    lineHeight: 20,
   },
   dateRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginTop: 4,
+    gap: 5,
+    marginTop: 5,
   },
   dateText: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.textMuted,
+    fontWeight: "500",
   },
   badgeGroup: {
     alignItems: "flex-end",
-    gap: 4,
+    gap: 6,
   },
   badgeSubmitted: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
     backgroundColor: "#ecfdf5",
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "#a7f3d0",
   },
   dotSubmitted: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: "#059669",
   },
   badgeSubmittedText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "700",
     color: "#059669",
   },
   badgeMissed: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
     backgroundColor: "#fef2f2",
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "#fecaca",
   },
   dotMissed: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: "#dc2626",
   },
   badgeMissedText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "700",
     color: "#dc2626",
   },
   badgePending: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
     backgroundColor: "#eff6ff",
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "#bfdbfe",
   },
   dotPending: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: "#2563eb",
   },
   badgePendingText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "700",
     color: "#2563eb",
   },
   badgeExtended: {
     backgroundColor: "#fffbeb",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: "#fde68a",
   },
   badgeExtendedText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: "700",
     color: "#b45309",
     textTransform: "uppercase",
+    letterSpacing: 0.3,
   },
   alarmChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: colors.surfaceSecondary,
+    gap: 5,
+    backgroundColor: "#fffbeb",
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-    marginTop: 2,
+    borderColor: "#fde68a",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   alarmChipActive: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
     backgroundColor: "#fef3c7",
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: "#f59e0b",
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-    marginTop: 2,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
+    shadowColor: "#f59e0b",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 1,
   },
   alarmChipText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "600",
-    color: colors.textSecondary,
+    color: "#b45309",
   },
   alarmChipTextActive: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "700",
-    color: "#b45309",
+    color: "#92400e",
   },
 
   /* Compact Attachment Chips Bar */
   attachmentBar: {
     flexDirection: "row",
     gap: 8,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: colors.surfaceBorder,
     borderBottomWidth: 1,
     borderBottomColor: colors.surfaceBorder,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   fileChip: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.surfaceSecondary,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
     gap: 6,
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
@@ -1317,11 +1342,11 @@ const styles = StyleSheet.create({
     borderColor: "#bbf7d0",
   },
   fileChipDisabled: {
-    opacity: 0.6,
+    opacity: 0.55,
     backgroundColor: colors.surfaceSecondary,
   },
   fileChipText: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.textPrimary,
     fontWeight: "500",
     flex: 1,
@@ -1339,13 +1364,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.primary,
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 8,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
   },
   submitBtnText: {
     color: "#fff",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
   },
   lockRow: {

@@ -23,6 +23,7 @@ import { AttendanceCard } from "../../components/AttendanceCard";
 import { AssignmentCard } from "../../components/AssignmentCard";
 import { AssignmentAlarmModal } from "../../components/AssignmentAlarmModal";
 import { useAlarmStore } from "../../stores/alarmStore";
+import { useSwipeTabNavigation } from "../../hooks/useSwipeTabNavigation";
 import {
   Clock,
   AlertCircle,
@@ -41,6 +42,7 @@ import {
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const swipeHandlers = useSwipeTabNavigation();
   const { account, isSyncing, syncProgressStep, syncNow } = useAuthStore();
   const { alarms } = useAlarmStore();
   const [offlineData, setOfflineData] = useState<any>(null);
@@ -188,7 +190,7 @@ export default function DashboardScreen() {
   const unreadCount = notificationsData?.unread_count || 0;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]} {...swipeHandlers}>
       {/* Header */}
       <ScreenHeader
         fullName={effectiveDashboard?.full_name || account?.full_name || "Student"}

@@ -1,4 +1,5 @@
 import React from "react";
+import { View, StyleSheet, Platform } from "react-native";
 import { Tabs } from "expo-router";
 import { colors } from "../../theme/colors";
 import { Home, BarChart3, Clock, BookOpen, FolderDown, Award } from "lucide-react-native";
@@ -11,21 +12,23 @@ export default function TabLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.surfaceBorder,
-          height: 64,
-          paddingBottom: 10,
+          backgroundColor: "#ffffff",
+          borderTopColor: "rgba(15, 23, 42, 0.08)",
+          borderTopWidth: 1,
+          height: Platform.OS === "ios" ? 82 : 68,
+          paddingBottom: Platform.OS === "ios" ? 22 : 8,
           paddingTop: 8,
-          shadowColor: colors.shadowColor,
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.03,
-          shadowRadius: 6,
-          elevation: 4,
+          shadowColor: "#0f172a",
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.04,
+          shadowRadius: 10,
+          elevation: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 10,
+          fontSize: 10.5,
           fontWeight: "700",
-          letterSpacing: 0.2,
+          letterSpacing: 0.1,
+          marginTop: 2,
         },
       }}
     >
@@ -33,44 +36,81 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color }) => <Home color={color} size={20} />,
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconPill, focused && styles.iconPillActive]}>
+              <Home color={color} size={focused ? 21 : 19} strokeWidth={focused ? 2.4 : 1.8} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="courses"
         options={{
           title: "Attendance",
-          tabBarIcon: ({ color }) => <BarChart3 color={color} size={20} />,
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconPill, focused && styles.iconPillActive]}>
+              <BarChart3 color={color} size={focused ? 21 : 19} strokeWidth={focused ? 2.4 : 1.8} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="assignments"
         options={{
           title: "Assignments",
-          tabBarIcon: ({ color }) => <Clock color={color} size={20} />,
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconPill, focused && styles.iconPillActive]}>
+              <Clock color={color} size={focused ? 21 : 19} strokeWidth={focused ? 2.4 : 1.8} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="lectures"
         options={{
           title: "Lectures",
-          tabBarIcon: ({ color }) => <BookOpen color={color} size={20} />,
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconPill, focused && styles.iconPillActive]}>
+              <BookOpen color={color} size={focused ? 21 : 19} strokeWidth={focused ? 2.4 : 1.8} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="downloads"
         options={{
           title: "Downloads",
-          tabBarIcon: ({ color }) => <FolderDown color={color} size={20} />,
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconPill, focused && styles.iconPillActive]}>
+              <FolderDown color={color} size={focused ? 21 : 19} strokeWidth={focused ? 2.4 : 1.8} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="results"
         options={{
           title: "Results",
-          tabBarIcon: ({ color }) => <Award color={color} size={20} />,
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconPill, focused && styles.iconPillActive]}>
+              <Award color={color} size={focused ? 21 : 19} strokeWidth={focused ? 2.4 : 1.8} />
+            </View>
+          ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconPillActive: {
+    backgroundColor: "rgba(4, 120, 87, 0.12)",
+  },
+});

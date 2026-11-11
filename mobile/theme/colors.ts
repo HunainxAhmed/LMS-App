@@ -12,15 +12,21 @@ export const colors = {
   accentIndigoSubtle: "#eef2ff",
   accentBlue: "#1d4ed8",     // Blue 700
   accentBlueSubtle: "#eff6ff",
+  accentAmber: "#d97706",    // Amber 600
+  accentAmberSubtle: "#fef3c7",
+  accentRose: "#e11d48",     // Rose 600
+  accentRoseSubtle: "#ffe4e6",
 
-  // Backgrounds & Canvas (Ultra clean, modern SaaS aesthetic)
+  // Backgrounds & Canvas (Ultra clean, modern iOS / SaaS aesthetic)
   background: "#f8fafc",     // Slate 50 (clean airy canvas)
   surface: "#ffffff",        // Pure crisp white
   surfaceSecondary: "#f1f5f9", // Slate 100
   surfaceTertiary: "#e2e8f0",  // Slate 200
   surfaceBorder: "#e2e8f0",   // Hairline Slate 200
   surfaceBorderLight: "#f1f5f9",
-  cardGlassBg: "rgba(255, 255, 255, 0.95)",
+  cardGlassBg: "rgba(255, 255, 255, 0.98)",
+  cardBorderSubtle: "rgba(15, 23, 42, 0.06)",
+  cardBorderHover: "rgba(4, 120, 87, 0.25)",
 
   // Typography (Authoritative contrast, zero blur)
   textPrimary: "#0f172a",    // Slate 900 (deep midnight)
@@ -30,23 +36,23 @@ export const colors = {
 
   // Academic Status Indicators (Subtle pastels with deep text)
   statusSafe: "#059669",     // Emerald 600
-  statusSafeBg: "#f0fdf4",   // Emerald 50
-  statusSafeBorder: "#bbf7d0",
-  statusSafeText: "#166534",
+  statusSafeBg: "#ecfdf5",   // Emerald 50
+  statusSafeBorder: "#a7f3d0",
+  statusSafeText: "#065f46",
 
   statusWarning: "#d97706",  // Amber 600
   statusWarningBg: "#fffbeb", // Amber 50
   statusWarningBorder: "#fde68a",
   statusWarningText: "#92400e",
 
-  statusDanger: "#dc2626",   // Red 600
-  statusDangerBg: "#fef2f2", // Red 50
-  statusDangerBorder: "#fecaca",
-  statusDangerText: "#991b1b",
+  statusDanger: "#e11d48",   // Rose 600
+  statusDangerBg: "#fff1f2", // Rose 50
+  statusDangerBorder: "#fecdd3",
+  statusDangerText: "#9f1239",
 
   // Deadlines & Badges
-  badgeTodayBg: "#fee2e2",
-  badgeTodayText: "#991b1b",
+  badgeTodayBg: "#ffe4e6",
+  badgeTodayText: "#9f1239",
   badge24hBg: "#ffedd5",
   badge24hText: "#9a3412",
   badge48hBg: "#fef3c7",

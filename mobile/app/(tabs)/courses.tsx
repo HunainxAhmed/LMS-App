@@ -20,9 +20,11 @@ import { saveAcademicDataToSQLite, getOfflineAcademicDataFromSQLite } from "../.
 import { getSecureItem, saveSecureItem } from "../../services/storage";
 import { notifyAttendanceUpdate } from "../../services/notifications";
 import { AttendanceCard } from "../../components/AttendanceCard";
+import { useSwipeTabNavigation } from "../../hooks/useSwipeTabNavigation";
 import { ShieldAlert, X, WifiOff, Info, CheckCircle2, AlertTriangle, XCircle, ShieldCheck } from "lucide-react-native";
 
 export default function CoursesScreen() {
+  const swipeHandlers = useSwipeTabNavigation();
   const { account, isSyncing, syncProgressStep, syncNow } = useAuthStore();
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
   const [showPolicyModal, setShowPolicyModal] = useState<boolean>(false);
@@ -203,7 +205,7 @@ export default function CoursesScreen() {
   });
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]} {...swipeHandlers}>
       {/* Top Bar */}
       <View style={styles.topBar}>
         <View style={{ flex: 1 }}>

@@ -37,6 +37,7 @@ import {
   getMimeType,
 } from "../../services/downloadsRegistry";
 import { useDownloadQueueStore } from "../../stores/downloadQueueStore";
+import { useSwipeTabNavigation } from "../../hooks/useSwipeTabNavigation";
 import {
   FileText,
   Download,
@@ -54,6 +55,7 @@ import {
 } from "lucide-react-native";
 
 export default function LecturesScreen() {
+  const swipeHandlers = useSwipeTabNavigation();
   const { account, isSyncing, syncProgressStep, syncNow } = useAuthStore();
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
   const [showCourseModal, setShowCourseModal] = useState<boolean>(false);
@@ -667,7 +669,7 @@ export default function LecturesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]} {...swipeHandlers}>
       {/* Top Header */}
       <View style={styles.topBar}>
         <View style={{ flex: 1, marginRight: 8 }}>
