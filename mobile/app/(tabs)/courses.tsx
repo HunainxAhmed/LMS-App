@@ -14,6 +14,8 @@ import { useQuery } from "@tanstack/react-query";
 import { colors } from "../../theme/colors";
 import { api } from "../../services/api";
 import { saveAcademicDataToSQLite, getOfflineAcademicDataFromSQLite } from "../../services/offlineDb";
+import { getSecureItem, saveSecureItem } from "../../services/storage";
+import { notifyAttendanceUpdate } from "../../services/notifications";
 import { AttendanceCard } from "../../components/AttendanceCard";
 import { ShieldAlert, X, WifiOff, Info, CheckCircle2, AlertTriangle, XCircle, ShieldCheck } from "lucide-react-native";
 
@@ -34,9 +36,70 @@ export default function CoursesScreen() {
     retry: 1,
   });
 
+  const previousAttendanceRef = React.useRef<Record<string, { present: number; absent: number; pct: number }> | null>(null);
+
   useEffect(() => {
     if (attendanceList && attendanceList.length > 0) {
       saveAcademicDataToSQLite({ attendance: attendanceList });
+
+      // Detect newly marked attendance changes and fire instant notifications
+      (async () => {
+        let known = previousAttendanceRef.current;
+        if (!known) {
+          const stored = await getSecureItem("cf_known_attendance_snapshot");
+          if (stored) {
+            try {
+              known = JSON.parse(stored);
+            } catch {}
+          }
+        }
+
+        if (known && Object.keys(known).length > 0) {
+          for (const item of attendanceList) {
+            const key = item.code || item.title;
+            const prev = known[key];
+            if (prev) {
+              if (item.absent_hours > prev.absent) {
+                notifyAttendanceUpdate({
+                  courseTitle: item.title,
+                  status: "ABSENT",
+                  percentage: item.percentage,
+                  presentHours: item.present_hours,
+                  totalHours: item.total_hours,
+                });
+                break;
+              } else if (item.present_hours > prev.present) {
+                notifyAttendanceUpdate({
+                  courseTitle: item.title,
+                  status: "PRESENT",
+                  percentage: item.percentage,
+                  presentHours: item.present_hours,
+                  totalHours: item.total_hours,
+                });
+                break;
+              } else if (item.percentage < 75.0 && prev.pct >= 75.0) {
+                notifyAttendanceUpdate({
+                  courseTitle: item.title,
+                  status: "WARNING",
+                  percentage: item.percentage,
+                });
+                break;
+              }
+            }
+          }
+        }
+
+        const newSnapshot: Record<string, { present: number; absent: number; pct: number }> = {};
+        for (const item of attendanceList) {
+          newSnapshot[item.code || item.title] = {
+            present: item.present_hours,
+            absent: item.absent_hours,
+            pct: item.percentage,
+          };
+        }
+        previousAttendanceRef.current = newSnapshot;
+        saveSecureItem("cf_known_attendance_snapshot", JSON.stringify(newSnapshot)).catch(() => {});
+      })();
     }
   }, [attendanceList]);
 

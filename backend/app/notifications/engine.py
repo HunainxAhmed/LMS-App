@@ -277,7 +277,7 @@ class NotificationEngine:
                 # 1. Did absent hours increase? (Student was marked absent)
                 if r["absent_hours"] > prev_snapshot.absent_hours:
                     diff_absent = r["absent_hours"] - prev_snapshot.absent_hours
-                    title = f"ATTENDANCE UPDATED: Marked Absent"
+                    title = f"ATTENDANCE: Marked Absent ❌"
                     body = (
                         f"You were marked absent in {r['title']}.\n"
                         f"Attendance is now {r['percentage']}% ({r['present_hours']}/{r['total_hours']} hrs)."
@@ -287,13 +287,29 @@ class NotificationEngine:
                         title=title,
                         body=body,
                         entity_key=f"absent::{code}::{r['absent_hours']}",
-                        deep_link="/(tabs)/more",
+                        deep_link="/(tabs)/courses",
                         data_payload={"course_code": code, "percentage": r["percentage"]}
                     )
 
-                # 2. Did attendance drop below threshold?
+                # 2. Did present hours increase? (Student was marked present)
+                elif r["present_hours"] > prev_snapshot.present_hours:
+                    title = f"ATTENDANCE: Marked Present ✅"
+                    body = (
+                        f"You were marked present in {r['title']}.\n"
+                        f"Attendance is now {r['percentage']}% ({r['present_hours']}/{r['total_hours']} hrs)."
+                    )
+                    await self.emit_notification(
+                        category="ATTENDANCE_PRESENT",
+                        title=title,
+                        body=body,
+                        entity_key=f"present::{code}::{r['present_hours']}",
+                        deep_link="/(tabs)/courses",
+                        data_payload={"course_code": code, "percentage": r["percentage"]}
+                    )
+
+                # 3. Did attendance drop below threshold?
                 if r["percentage"] < threshold and prev_snapshot.percentage >= threshold:
-                    title = f"ATTENDANCE WARNING: {r['title']}"
+                    title = f"ATTENDANCE WARNING: {r['title']} ⚠️"
                     body = (
                         f"Your attendance has dropped below {threshold}% to {r['percentage']}%.\n"
                         f"You have 0 safe classes left to miss."
@@ -303,14 +319,9 @@ class NotificationEngine:
                         title=title,
                         body=body,
                         entity_key=f"warning::{code}::{r['percentage']}",
-                        deep_link="/(tabs)/more",
+                        deep_link="/(tabs)/courses",
                         data_payload={"course_code": code, "percentage": r["percentage"]}
                     )
-
-                # 3. Was attendance corrected / present increased?
-                elif r["present_hours"] > prev_snapshot.present_hours and r["absent_hours"] == prev_snapshot.absent_hours:
-                    # Normal class attendance recorded as present
-                    pass
 
     async def check_new_materials(self, scraped_materials: List[Dict[str, Any]]):
         """Emits notification when a new lecture or study resource is uploaded."""

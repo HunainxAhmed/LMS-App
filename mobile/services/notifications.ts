@@ -157,6 +157,54 @@ export async function notifyNewAssignment({
   }
 }
 
+/**
+ * Emits an immediate high-priority local notification when an attendance update is recorded.
+ */
+export async function notifyAttendanceUpdate({
+  courseTitle,
+  status,
+  percentage,
+  presentHours,
+  totalHours,
+}: {
+  courseTitle: string;
+  status: "PRESENT" | "ABSENT" | "WARNING";
+  percentage: number;
+  presentHours?: number;
+  totalHours?: number;
+}) {
+  if (Platform.OS === "web") return;
+  try {
+    const isPresent = status === "PRESENT";
+    const isWarning = status === "WARNING";
+    const title = isWarning
+      ? `ATTENDANCE WARNING: ${courseTitle} ⚠️`
+      : isPresent
+      ? `ATTENDANCE: Marked Present ✅`
+      : `ATTENDANCE: Marked Absent ❌`;
+
+    const body = isWarning
+      ? `Attendance dropped below threshold to ${percentage}% in ${courseTitle}. Zero safe misses remaining!`
+      : isPresent
+      ? `You were marked present in ${courseTitle}.\nAttendance: ${percentage}% (${presentHours || 0}/${totalHours || 0} hrs).`
+      : `You were marked absent in ${courseTitle}.\nAttendance: ${percentage}% (${presentHours || 0}/${totalHours || 0} hrs).`;
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        data: { deepLink: "/(tabs)/courses" },
+        sound: "default",
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+        color: !isPresent ? "#dc2626" : "#059669",
+      },
+      trigger: Platform.OS === "android" ? { channelId: "academic_alerts" } : null,
+    });
+  } catch (err) {
+    console.debug("Local attendance notification error:", err);
+  }
+}
+
 export async function ensureNotificationPermissions(): Promise<boolean> {
   if (Platform.OS === "web") return false;
   try {

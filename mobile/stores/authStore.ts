@@ -3,8 +3,10 @@ import { api } from "../services/api";
 import { registerStoredPushToken } from "../services/notifications";
 import {
   saveSecureItem,
+  getSecureItem,
   deleteSecureItem,
   saveUniversityCredentials,
+  getUniversityCredentials,
   clearUniversityCredentials,
   KEYS,
   DEFAULT_API_URL,
@@ -52,9 +54,46 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   serverUrl: DEFAULT_API_URL,
 
   checkAuth: async () => {
-    set({ isLoading: true });
+    // 1. Immediately inspect local cache first so user never sees a login flash or gets logged out offline in university
+    const cachedProfileRaw = await getSecureItem("cf_user_profile");
+    let initialUser: any = null;
+    let initialAccount: any = null;
+
+    if (cachedProfileRaw) {
+      try {
+        const parsed = JSON.parse(cachedProfileRaw);
+        initialUser = parsed;
+        initialAccount = parsed.university_account;
+      } catch {}
+    }
+
+    const token = await getSecureItem(KEYS.ACCESS_TOKEN);
+    const { enrollment, password, campusId, campusName } = await getUniversityCredentials();
+
+    if (initialUser && initialAccount) {
+      set({
+        user: initialUser,
+        account: initialAccount,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+      registerStoredPushToken().catch(() => {});
+    } else if (token || enrollment) {
+      set({ isLoading: true });
+    } else {
+      set({
+        user: null,
+        account: null,
+        isAuthenticated: false,
+        isLoading: false,
+      });
+      return;
+    }
+
+    // 2. Fetch fresh profile from server in background
     try {
       const profile = await api.getProfile();
+      await saveSecureItem("cf_user_profile", JSON.stringify(profile));
       set({
         user: profile,
         account: profile.university_account,
@@ -62,13 +101,70 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false,
       });
       registerStoredPushToken().catch(() => {});
-    } catch (e) {
-      set({
-        user: null,
-        account: null,
-        isAuthenticated: false,
-        isLoading: false,
-      });
+    } catch (e: any) {
+      // If error is 401 Unauthorized (token expired) and student credentials exist
+      if (e?.status === 401 && enrollment && password) {
+        try {
+          console.log("Access token expired. Auto-renewing session with stored university credentials...");
+          const cleanEnroll = enrollment.trim().replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+          const internalEmail = `${cleanEnroll}@student.campusflow.internal`;
+          const internalPassword = `CF_${cleanEnroll}_2025!`;
+
+          let tokens;
+          try {
+            tokens = await api.login({ email: internalEmail, password: internalPassword });
+          } catch {
+            tokens = await api.register({ email: internalEmail, password: internalPassword });
+          }
+          await saveSecureItem(KEYS.ACCESS_TOKEN, tokens.access_token);
+          await saveSecureItem(KEYS.REFRESH_TOKEN, tokens.refresh_token);
+
+          const freshProfile = await api.getProfile();
+          await saveSecureItem("cf_user_profile", JSON.stringify(freshProfile));
+          set({
+            user: freshProfile,
+            account: freshProfile.university_account,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+          registerStoredPushToken().catch(() => {});
+          return;
+        } catch (reAuthErr) {
+          console.log("Automatic re-auth failed:", reAuthErr);
+        }
+      }
+
+      // If it was a network error (weak university Wi-Fi, timeout, offline, cold start):
+      // NEVER kick the student out if they have cached profile or credentials!
+      if (initialUser && initialAccount) {
+        console.log("Network unreachable in university; preserving authenticated offline session.");
+        set({
+          user: initialUser,
+          account: initialAccount,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+      } else if (enrollment) {
+        const fallbackAccount = {
+          enrollment,
+          campus_name: campusName || "Karachi Campus",
+          campus_id: campusId || "2",
+          full_name: enrollment,
+        };
+        set({
+          user: { id: "offline_user", email: `${enrollment}@student.bahria` },
+          account: fallbackAccount,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+      } else {
+        set({
+          user: null,
+          account: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
+      }
     }
   },
 
@@ -155,6 +251,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // 4. Update auth state atomically with user & university account
       const profile = await api.getProfile();
+      await saveSecureItem("cf_user_profile", JSON.stringify(profile));
       set({
         user: profile,
         account: profile.university_account,
@@ -196,6 +293,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const resp = await api.connectDemoLMS();
 
       const profile = await api.getProfile();
+      await saveSecureItem("cf_user_profile", JSON.stringify(profile));
       set({
         user: profile,
         account: profile.university_account,
@@ -216,6 +314,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await api.disconnectLMS();
       await clearUniversityCredentials();
+      await deleteSecureItem("cf_user_profile");
       await get().checkAuth();
     } catch (e) {
       set({ isLoading: false });
@@ -248,6 +347,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     await deleteSecureItem(KEYS.ACCESS_TOKEN);
     await deleteSecureItem(KEYS.REFRESH_TOKEN);
+    await deleteSecureItem("cf_user_profile");
     await clearUniversityCredentials();
     set({
       user: null,
