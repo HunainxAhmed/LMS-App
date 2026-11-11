@@ -100,7 +100,13 @@ async def ensure_active_portal_session(
             }
             async with httpx.AsyncClient(cookies=cookies, headers=req_headers, verify=False, timeout=6.0, follow_redirects=True) as client:
                 r = await client.get(test_url)
-                if r.status_code == 200 and "login" not in str(r.url).lower() and "<form" not in r.text[:600].lower():
+                url_str = str(r.url).lower()
+                is_on_lms = "lms.bahria.edu.pk" in url_str
+                is_on_cms = "cms.bahria.edu.pk" in url_str
+                has_cms_markers = "aspirerootpath" in r.text.lower() or "cms - bahria" in r.text.lower() or "livesite" in r.text.lower()
+                has_login_markers = "login" in url_str or "<form" in r.text.lower()
+
+                if r.status_code == 200 and is_on_lms and not is_on_cms and not has_cms_markers and not has_login_markers:
                     return cookies
         except Exception as e:
             logger.debug(f"Session quick ping check: {e}")
@@ -236,18 +242,34 @@ async def download_single_file(
             resp = await client.get(target_url, follow_redirects=True)
             content_type = resp.headers.get("content-type", "").lower()
 
+            is_html = (
+                "html" in content_type or
+                resp.content.strip().startswith(b"<!DOCTYPE") or
+                resp.content.strip().startswith(b"<html") or
+                b"aspireRootPath" in resp.content[:600] or
+                b"CMS - Bahria" in resp.content[:600]
+            )
+
             # If LMS returned an HTML login redirect, force re-auth once and retry
-            if "html" in content_type and ("login" in str(resp.url).lower() or "<form" in resp.text.lower() or "signin" in resp.text.lower()):
-                logger.info("Encountered login redirect during download. Re-authenticating and retrying...")
+            if is_html:
+                logger.info("Encountered HTML redirect during download. Re-authenticating session and retrying...")
                 fresh_cookies = await ensure_active_portal_session(db, account, force_fresh=True)
                 target_url, custom_referer = refresh_k_url(target_url)
                 req_headers["Referer"] = custom_referer
                 resp = await client.get(target_url, cookies=fresh_cookies, headers=req_headers, follow_redirects=True)
                 content_type = resp.headers.get("content-type", "").lower()
-                if "html" in content_type and ("login" in str(resp.url).lower() or "<form" in resp.text.lower()):
+
+                is_html_retry = (
+                    "html" in content_type or
+                    resp.content.strip().startswith(b"<!DOCTYPE") or
+                    resp.content.strip().startswith(b"<html") or
+                    b"aspireRootPath" in resp.content[:600] or
+                    b"CMS - Bahria" in resp.content[:600]
+                )
+                if is_html_retry:
                     raise HTTPException(
-                        status_code=401,
-                        detail="Bahria LMS session has expired. Please refresh your session in the app."
+                        status_code=502,
+                        detail="Bahria LMS portal returned an unauthorized login page instead of the requested document file."
                     )
 
             if resp.status_code != 200 or len(resp.content) == 0:
@@ -265,7 +287,23 @@ async def download_single_file(
                     server_filename = fn_match.group(1).strip()
 
             final_name = sanitize_filename(server_filename or target_name or "document.pdf")
-            final_media_type = resp.headers.get("content-type") or "application/octet-stream"
+            ext = os.path.splitext(final_name)[1].lower()
+            mime_map = {
+                ".pdf": "application/pdf",
+                ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                ".ppt": "application/vnd.ms-powerpoint",
+                ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ".doc": "application/msword",
+                ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ".xls": "application/vnd.ms-excel",
+                ".zip": "application/zip",
+                ".rar": "application/x-rar-compressed",
+                ".png": "image/png",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".txt": "text/plain",
+            }
+            final_media_type = mime_map.get(ext) or resp.headers.get("content-type") or "application/octet-stream"
 
             return Response(
                 content=resp.content,

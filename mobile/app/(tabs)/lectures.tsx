@@ -21,7 +21,7 @@ import * as Notifications from "expo-notifications";
 import { colors } from "../../theme/colors";
 import { api } from "../../services/api";
 import { saveAcademicDataToSQLite, getOfflineAcademicDataFromSQLite } from "../../services/offlineDb";
-import { getDownloadDirectory } from "../../services/storage";
+import { getDownloadDirectory, getSecureItem, KEYS } from "../../services/storage";
 import {
   updateDownloadProgressNotification,
   showDownloadCompleteNotification,
@@ -245,12 +245,19 @@ export default function LecturesScreen() {
         force: true,
       });
 
+      const token = await getSecureItem(KEYS.ACCESS_TOKEN);
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       // Background-capable native download session
       const downloadResumable = FileSystem.createDownloadResumable(
         downloadUrl,
         fileUri,
         {
           sessionType: FileSystem.FileSystemSessionType.BACKGROUND,
+          headers,
         },
         (progress) => {
           if (progress.totalBytesExpectedToWrite > 0) {
@@ -271,6 +278,35 @@ export default function LecturesScreen() {
       useDownloadQueueStore.getState().setDownloadCompleted();
 
       if (res && res.status === 200) {
+        // Validate downloaded file integrity (ensure server did not return HTML error page)
+        let isCorrupted = false;
+        try {
+          const headerSnippet = await FileSystem.readAsStringAsync(res.uri, {
+            length: 120,
+            encoding: FileSystem.EncodingType.UTF8,
+          });
+          if (
+            headerSnippet.includes("<!DOCTYPE") ||
+            headerSnippet.includes("<html") ||
+            headerSnippet.includes("aspireRootPath") ||
+            headerSnippet.includes("CMS - Bahria") ||
+            headerSnippet.includes('{"detail"')
+          ) {
+            isCorrupted = true;
+          }
+        } catch {}
+
+        if (isCorrupted) {
+          await FileSystem.deleteAsync(res.uri, { idempotent: true });
+          useDownloadQueueStore.getState().clearActiveDownload();
+          await dismissDownloadNotification();
+          Alert.alert(
+            "Download Incomplete",
+            "The university portal returned an expired session or unauthorized page instead of the lecture document. Please pull down to refresh and try downloading again."
+          );
+          return;
+        }
+
         await registerDownloadedFile({
           fileName: name,
           fileUri: res.uri,
@@ -304,6 +340,9 @@ export default function LecturesScreen() {
           ]
         );
       } else {
+        try {
+          await FileSystem.deleteAsync(fileUri, { idempotent: true });
+        } catch {}
         useDownloadQueueStore.getState().clearActiveDownload();
         await dismissDownloadNotification();
         Alert.alert("Download Error", "Could not fetch lecture note from portal.");
@@ -389,12 +428,19 @@ export default function LecturesScreen() {
           await new Promise((r) => setTimeout(r, 450));
         } else {
           const fileUri = `${targetDir}${fileName}`;
+          const token = await getSecureItem(KEYS.ACCESS_TOKEN);
+          const headers: Record<string, string> = {};
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          }
+
           // Background session enabled for each file
           const downloadResumable = FileSystem.createDownloadResumable(
             downloadUrl,
             fileUri,
             {
               sessionType: FileSystem.FileSystemSessionType.BACKGROUND,
+              headers,
             },
             (progress) => {
               if (progress.totalBytesExpectedToWrite > 0) {
@@ -416,13 +462,40 @@ export default function LecturesScreen() {
           );
           const dlRes = await downloadResumable.downloadAsync();
           if (dlRes && dlRes.status === 200) {
-            await registerDownloadedFile({
-              fileName,
-              fileUri: dlRes.uri || fileUri,
-              courseName: courseTitle,
-              category: "lecture",
-              mimeType: "application/pdf",
-            });
+            let isCorrupted = false;
+            try {
+              const headerSnippet = await FileSystem.readAsStringAsync(dlRes.uri || fileUri, {
+                length: 120,
+                encoding: FileSystem.EncodingType.UTF8,
+              });
+              if (
+                headerSnippet.includes("<!DOCTYPE") ||
+                headerSnippet.includes("<html") ||
+                headerSnippet.includes("aspireRootPath") ||
+                headerSnippet.includes("CMS - Bahria") ||
+                headerSnippet.includes('{"detail"')
+              ) {
+                isCorrupted = true;
+              }
+            } catch {}
+
+            if (!isCorrupted) {
+              await registerDownloadedFile({
+                fileName,
+                fileUri: dlRes.uri || fileUri,
+                courseName: courseTitle,
+                category: "lecture",
+                mimeType: getMimeType(fileName),
+              });
+            } else {
+              try {
+                await FileSystem.deleteAsync(dlRes.uri || fileUri, { idempotent: true });
+              } catch {}
+            }
+          } else {
+            try {
+              await FileSystem.deleteAsync(fileUri, { idempotent: true });
+            } catch {}
           }
         }
       }

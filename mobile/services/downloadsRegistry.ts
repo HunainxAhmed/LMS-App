@@ -281,6 +281,37 @@ export async function openDownloadedFile(item: DownloadedItem) {
       return;
     }
 
+    // Validate file integrity before launching external viewer
+    try {
+      const headerSnippet = await FileSystem.readAsStringAsync(activeUri, {
+        length: 120,
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      if (
+        headerSnippet.includes("<!DOCTYPE") ||
+        headerSnippet.includes("<html") ||
+        headerSnippet.includes("aspireRootPath") ||
+        headerSnippet.includes("CMS - Bahria") ||
+        headerSnippet.includes('{"detail"')
+      ) {
+        Alert.alert(
+          "Corrupted File Detected",
+          `"${item.fileName}" appears to be an HTML error page rather than a genuine document file. This occurred when downloaded during an expired portal session.\n\nWould you like to delete this corrupted file from your device?`,
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Delete Corrupted File",
+              style: "destructive",
+              onPress: async () => {
+                await deleteDownloadedFile(item.id, activeUri);
+              },
+            },
+          ]
+        );
+        return;
+      }
+    } catch {}
+
     const mime = item.mimeType || getMimeType(item.fileName);
 
     // On Android: Use IntentLauncher to directly view/open the file in WPS Office / PowerPoint / PDF Viewer

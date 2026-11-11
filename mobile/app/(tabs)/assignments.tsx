@@ -18,12 +18,13 @@ import * as DocumentPicker from "expo-document-picker";
 import { colors } from "../../theme/colors";
 import { api } from "../../services/api";
 import { saveAcademicDataToSQLite, getOfflineAcademicDataFromSQLite } from "../../services/offlineDb";
-import { getDownloadDirectory } from "../../services/storage";
+import { getDownloadDirectory, getSecureItem, saveSecureItem, KEYS } from "../../services/storage";
 import {
   updateDownloadProgressNotification,
   showDownloadCompleteNotification,
   dismissDownloadNotification,
   ensureNotificationPermissions,
+  notifyNewAssignment,
 } from "../../services/notifications";
 import {
   registerDownloadedFile,
@@ -90,9 +91,41 @@ export default function AssignmentsScreen() {
     }, [refetchCourses, refetch])
   );
 
+  const previousAssignmentIdsRef = React.useRef<Set<string> | null>(null);
+
   useEffect(() => {
     if (assignments && assignments.length > 0) {
       saveAcademicDataToSQLite({ assignments });
+
+      // Detect newly uploaded assignments and trigger local notification
+      (async () => {
+        let knownIds = previousAssignmentIdsRef.current;
+        if (!knownIds) {
+          const stored = await getSecureItem("cf_known_assignment_ids");
+          if (stored) {
+            try {
+              knownIds = new Set(JSON.parse(stored));
+            } catch {}
+          }
+        }
+
+        if (knownIds && knownIds.size > 0) {
+          for (const a of assignments) {
+            if (!knownIds.has(a.id) && !knownIds.has(a.fingerprint)) {
+              notifyNewAssignment({
+                title: a.title,
+                courseName: a.course_name || "Coursework",
+                deadline: a.deadline_raw,
+              });
+              break;
+            }
+          }
+        }
+
+        const allIds = assignments.map((a: any) => a.id);
+        previousAssignmentIdsRef.current = new Set(allIds);
+        saveSecureItem("cf_known_assignment_ids", JSON.stringify(allIds)).catch(() => {});
+      })();
     }
   }, [assignments]);
 
@@ -185,7 +218,7 @@ export default function AssignmentsScreen() {
     assignId: string,
     targetType: "teacher" | "submission"
   ) => {
-    if (!url) {
+    if (!url && !assignId) {
       Alert.alert("No File", "No document file was found for this assignment.");
       return;
     }
@@ -195,7 +228,7 @@ export default function AssignmentsScreen() {
 
     try {
       await ensureNotificationPermissions();
-      const filenameMatch = url.match(/[?&]file=([^&]+)/) || url.match(/\/([^\/?#]+)$/);
+      const filenameMatch = (url || "").match(/[?&]file=([^&]+)/) || (url || "").match(/\/([^\/?#]+)$/);
       let name = fallbackFileName;
       if (!name || name === "download") {
         name = filenameMatch ? decodeURIComponent(filenameMatch[1]) : `file_${Date.now()}.pdf`;
@@ -210,11 +243,53 @@ export default function AssignmentsScreen() {
       const baseDir = await getDownloadDirectory();
       const localUri = `${baseDir}${Date.now()}_${name}`;
 
-      const res = await FileSystem.downloadAsync(url, localUri);
+      // Build authenticated proxy URL through LMS ∞ backend
+      const downloadUrl = await api.getFileDownloadUrl({
+        assignmentId: assignId,
+        targetType,
+        url,
+        filename: name,
+      });
+
+      const token = await getSecureItem(KEYS.ACCESS_TOKEN);
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const res = await FileSystem.downloadAsync(downloadUrl, localUri, { headers });
 
       setDownloadingKey(null);
 
       if (res && res.status === 200) {
+        // Validate downloaded file integrity (ensure server did not return HTML error page)
+        let isCorrupted = false;
+        try {
+          const headerSnippet = await FileSystem.readAsStringAsync(res.uri, {
+            length: 120,
+            encoding: FileSystem.EncodingType.UTF8,
+          });
+          if (
+            headerSnippet.includes("<!DOCTYPE") ||
+            headerSnippet.includes("<html") ||
+            headerSnippet.includes("aspireRootPath") ||
+            headerSnippet.includes("CMS - Bahria") ||
+            headerSnippet.includes('{"detail"')
+          ) {
+            isCorrupted = true;
+          }
+        } catch {}
+
+        if (isCorrupted) {
+          await FileSystem.deleteAsync(res.uri, { idempotent: true });
+          await dismissDownloadNotification();
+          Alert.alert(
+            "Download Incomplete",
+            "The university portal returned an expired session or unauthorized page instead of the document. Please pull down to refresh and try downloading again."
+          );
+          return;
+        }
+
         const fileInfo = await FileSystem.getInfoAsync(res.uri);
         const fileSize = fileInfo.exists && "size" in fileInfo ? fileInfo.size : undefined;
 
@@ -252,6 +327,9 @@ export default function AssignmentsScreen() {
           ]
         );
       } else {
+        try {
+          await FileSystem.deleteAsync(localUri, { idempotent: true });
+        } catch {}
         await dismissDownloadNotification();
         Alert.alert("Download Error", "Could not fetch document from Bahria University LMS.");
       }

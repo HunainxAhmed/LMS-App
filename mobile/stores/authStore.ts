@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { api } from "../services/api";
+import { registerStoredPushToken } from "../services/notifications";
 import {
   saveSecureItem,
   deleteSecureItem,
@@ -60,6 +61,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: true,
         isLoading: false,
       });
+      registerStoredPushToken().catch(() => {});
     } catch (e) {
       set({
         user: null,
@@ -159,6 +161,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: true,
         isLoading: false,
       });
+      registerStoredPushToken().catch(() => {});
 
       return resp;
     } catch (e) {
@@ -199,6 +202,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: true,
         isLoading: false,
       });
+      registerStoredPushToken().catch(() => {});
 
       return resp;
     } catch (e) {

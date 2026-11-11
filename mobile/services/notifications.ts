@@ -1,6 +1,8 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import Constants from "expo-constants";
 import { api } from "./api";
+import { getSecureItem, saveSecureItem, KEYS } from "./storage";
 
 // Configure local notification display behavior (native only)
 if (Platform.OS !== "web") {
@@ -74,18 +76,85 @@ export async function setupNotifications() {
 
     // 3. Remote push token extraction (EAS build / physical device)
     try {
-      const tokenData = await Notifications.getExpoPushTokenAsync();
+      const projectId =
+        Constants?.expoConfig?.extra?.eas?.projectId ??
+        Constants?.easConfig?.projectId ??
+        "67c8e13f-c02d-4403-ada7-efa9a1dfc583";
+
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId,
+      });
+
       if (tokenData?.data) {
-        await api.registerDevice(tokenData.data, `${Platform.OS} device`, Platform.OS);
+        await saveSecureItem("cf_expo_push_token", tokenData.data);
+        const authToken = await getSecureItem(KEYS.ACCESS_TOKEN);
+        if (authToken) {
+          try {
+            await api.registerDevice(tokenData.data, `${Platform.OS} device`, Platform.OS);
+            console.log("Device push token successfully registered with LMS ∞ backend.");
+          } catch (regErr) {
+            console.log("Push token registration deferred until login:", regErr);
+          }
+        }
         return tokenData.data;
       }
     } catch (e) {
-      console.log("Expo Go push token limitation; using local notification engine.");
+      console.log("Expo push token extraction note (local notification fallback active):", e);
     }
   } catch (err) {
     console.warn("Notification setup error handled safely:", err);
   }
   return null;
+}
+
+/**
+ * Registers the device's stored push token with the backend once the user is authenticated.
+ */
+export async function registerStoredPushToken(): Promise<void> {
+  if (Platform.OS === "web") return;
+  try {
+    let token = await getSecureItem("cf_expo_push_token");
+    if (!token) {
+      token = await setupNotifications();
+    }
+    const authToken = await getSecureItem(KEYS.ACCESS_TOKEN);
+    if (token && authToken) {
+      await api.registerDevice(token, `${Platform.OS} device`, Platform.OS);
+      console.log("Stored device push token registered successfully with backend.");
+    }
+  } catch (err) {
+    console.log("Could not register stored push token:", err);
+  }
+}
+
+/**
+ * Emits an immediate high-priority local notification when a new assignment is detected.
+ */
+export async function notifyNewAssignment({
+  title,
+  courseName,
+  deadline,
+}: {
+  title: string;
+  courseName: string;
+  deadline?: string;
+}) {
+  if (Platform.OS === "web") return;
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `NEW ASSIGNMENT: ${courseName}`,
+        body: `${title} has been uploaded.\nDue: ${deadline || "Check LMS"}`,
+        data: { deepLink: "/(tabs)/assignments" },
+        sound: "default",
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+        color: "#059669",
+      },
+      trigger: Platform.OS === "android" ? { channelId: "academic_alerts" } : null,
+    });
+  } catch (err) {
+    console.debug("Local assignment notification error:", err);
+  }
 }
 
 export async function ensureNotificationPermissions(): Promise<boolean> {
