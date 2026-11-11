@@ -173,7 +173,21 @@ export const DEFAULT_DOWNLOAD_DIR =
 
 export async function getDownloadDirectory(): Promise<string> {
   const custom = await getSecureItem("cf_download_directory");
-  return custom || DEFAULT_DOWNLOAD_DIR;
+  const targetDir = custom || DEFAULT_DOWNLOAD_DIR;
+
+  // Guarantee intermediate directories exist on native device before file downloads
+  if (Platform.OS !== "web" && targetDir) {
+    try {
+      const dirInfo = await FileSystem.getInfoAsync(targetDir);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(targetDir, { intermediates: true });
+      }
+    } catch (e) {
+      console.warn("Could not ensure download directory exists:", e);
+    }
+  }
+
+  return targetDir;
 }
 
 export async function setDownloadDirectory(path: string): Promise<void> {

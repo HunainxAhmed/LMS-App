@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
@@ -285,6 +286,11 @@ export default function AssignmentsScreen() {
       });
 
       const baseDir = await getDownloadDirectory();
+      try {
+        if (Platform.OS !== "web") {
+          await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
+        }
+      } catch {}
       const localUri = `${baseDir}${Date.now()}_${name}`;
 
       // Build authenticated proxy URL through LMS ∞ backend

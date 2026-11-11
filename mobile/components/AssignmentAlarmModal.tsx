@@ -19,6 +19,10 @@ import {
   Sparkles,
   RotateCcw,
   Trash2,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Minus,
 } from "lucide-react-native";
 import {
   AssignmentAlarm,
@@ -62,7 +66,7 @@ export const AssignmentAlarmModal: React.FC<AssignmentAlarmModalProps> = ({
 
   // Selected trigger date state
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [activePreset, setActivePreset] = useState<"72h" | "48h" | "24h" | "12h" | "custom">("72h");
+  const [activePreset, setActivePreset] = useState<"72h" | "48h" | "24h" | "custom">("72h");
 
   // Re-initialize default 72h-prior date whenever modal opens for this assignment
   useEffect(() => {
@@ -82,25 +86,31 @@ export const AssignmentAlarmModal: React.FC<AssignmentAlarmModalProps> = ({
     return parseAssignmentDeadline(deadlineIso, extDeadlineIso, deadlineRaw);
   }, [deadlineIso, extDeadlineIso, deadlineRaw]);
 
-  // Apply quick preset calculations based on deadline
-  const applyPreset = (preset: "72h" | "48h" | "24h" | "12h") => {
-    setActivePreset(preset);
+  // Compute preset dates for quick preview
+  const presetDates = useMemo(() => {
     const deadlineMs = parsedDeadline ? parsedDeadline.getTime() : Date.now() + 4 * 24 * 3600 * 1000;
-    let offsetHours = 72;
-    if (preset === "48h") offsetHours = 48;
-    if (preset === "24h") offsetHours = 24;
-    if (preset === "12h") offsetHours = 12;
+    const now = Date.now();
 
-    const targetMs = deadlineMs - offsetHours * 3600 * 1000;
-    if (targetMs > Date.now()) {
-      setSelectedDate(new Date(targetMs));
-    } else {
-      // If requested prior time has passed, default to halfway or in 2 hours
-      setSelectedDate(new Date(Date.now() + 2 * 3600 * 1000));
+    const getDateForHours = (h: number) => {
+      const ms = deadlineMs - h * 3600 * 1000;
+      return ms > now ? new Date(ms) : new Date(now + 2 * 3600 * 1000);
+    };
+
+    return {
+      "72h": getDateForHours(72),
+      "48h": getDateForHours(48),
+      "24h": getDateForHours(24),
+    };
+  }, [parsedDeadline]);
+
+  const applyPreset = (preset: "72h" | "48h" | "24h" | "custom") => {
+    setActivePreset(preset);
+    if (preset !== "custom") {
+      setSelectedDate(presetDates[preset]);
     }
   };
 
-  // Time modification helpers
+  // Adjust date by days
   const adjustDay = (days: number) => {
     setActivePreset("custom");
     const next = new Date(selectedDate.getTime() + days * 24 * 3600 * 1000);
@@ -109,17 +119,24 @@ export const AssignmentAlarmModal: React.FC<AssignmentAlarmModalProps> = ({
     }
   };
 
-  const adjustHour = (hour24: number) => {
+  // Stepper adjustments for time
+  const adjustHourBy = (delta: number) => {
     setActivePreset("custom");
     const next = new Date(selectedDate);
-    next.setHours(hour24);
+    let h = next.getHours() + delta;
+    if (h < 0) h = 23;
+    if (h > 23) h = 0;
+    next.setHours(h);
     setSelectedDate(next);
   };
 
-  const adjustMinute = (min: number) => {
+  const adjustMinuteBy = (delta: number) => {
     setActivePreset("custom");
     const next = new Date(selectedDate);
-    next.setMinutes(min);
+    let m = next.getMinutes() + delta;
+    if (m < 0) m = 45;
+    if (m > 59) m = 0;
+    next.setMinutes(m);
     setSelectedDate(next);
   };
 
@@ -201,7 +218,7 @@ export const AssignmentAlarmModal: React.FC<AssignmentAlarmModalProps> = ({
                 <AlarmClock size={20} color="#b45309" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.headerTitle}>Assignment Alarm & Reminder</Text>
+                <Text style={styles.headerTitle}>Set Assignment Alarm</Text>
                 <Text style={styles.headerSubtitle} numberOfLines={1}>
                   {courseName}
                 </Text>
@@ -224,7 +241,7 @@ export const AssignmentAlarmModal: React.FC<AssignmentAlarmModalProps> = ({
           </View>
 
           <ScrollView style={styles.scrollBody} showsVerticalScrollIndicator={false}>
-            {/* Active Alarm Status Banner (If set) */}
+            {/* Active Alarm Banner (If previously set) */}
             {existingAlarm && (
               <View style={styles.existingAlarmBanner}>
                 <View style={styles.existingAlarmHeader}>
@@ -272,164 +289,243 @@ export const AssignmentAlarmModal: React.FC<AssignmentAlarmModalProps> = ({
               </View>
             )}
 
-            {/* Preset Selector */}
+            {/* Clean Preset Selection Cards */}
             <Text style={styles.sectionTitle}>
-              {existingAlarm ? "Change Alarm Reminder Time:" : "Choose Reminder Time:"}
-            </Text>
-            <Text style={styles.presetHint}>
-              Defaults to 72 hours (3 days) before deadline. You can pick any preset or custom time.
+              {existingAlarm ? "Change Alarm Reminder Time:" : "Select Reminder Time:"}
             </Text>
 
-            <View style={styles.presetRow}>
+            <View style={styles.presetCardsContainer}>
+              {/* 72h Before (Default & Recommended) */}
               <TouchableOpacity
-                style={[styles.presetChip, activePreset === "72h" && styles.presetChipActive]}
+                style={[styles.presetCard, activePreset === "72h" && styles.presetCardActive]}
                 onPress={() => applyPreset("72h")}
                 activeOpacity={0.7}
               >
-                <Sparkles size={12} color={activePreset === "72h" ? "#b45309" : colors.textSecondary} />
-                <Text style={[styles.presetChipText, activePreset === "72h" && styles.presetChipTextActive]}>
-                  72h Before (Default)
-                </Text>
+                <View style={styles.presetCardLeft}>
+                  <View style={[styles.presetRadio, activePreset === "72h" && styles.presetRadioActive]}>
+                    {activePreset === "72h" && <View style={styles.radioDot} />}
+                  </View>
+                  <View>
+                    <View style={styles.presetTitleRow}>
+                      <Text style={[styles.presetTitle, activePreset === "72h" && styles.presetTitleActive]}>
+                        72 Hours Before
+                      </Text>
+                      <View style={styles.recommendBadge}>
+                        <Sparkles size={10} color="#b45309" />
+                        <Text style={styles.recommendText}>Default</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.presetTimeSubtitle}>
+                      {presetDates["72h"].toLocaleDateString("en-US", {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                      })}{" "}
+                      •{" "}
+                      {presetDates["72h"].toLocaleTimeString("en-US", {
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                  </View>
+                </View>
               </TouchableOpacity>
 
+              {/* 48h Before */}
               <TouchableOpacity
-                style={[styles.presetChip, activePreset === "48h" && styles.presetChipActive]}
+                style={[styles.presetCard, activePreset === "48h" && styles.presetCardActive]}
                 onPress={() => applyPreset("48h")}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.presetChipText, activePreset === "48h" && styles.presetChipTextActive]}>
-                  48h Before
-                </Text>
+                <View style={styles.presetCardLeft}>
+                  <View style={[styles.presetRadio, activePreset === "48h" && styles.presetRadioActive]}>
+                    {activePreset === "48h" && <View style={styles.radioDot} />}
+                  </View>
+                  <View>
+                    <Text style={[styles.presetTitle, activePreset === "48h" && styles.presetTitleActive]}>
+                      48 Hours Before (2 Days)
+                    </Text>
+                    <Text style={styles.presetTimeSubtitle}>
+                      {presetDates["48h"].toLocaleDateString("en-US", {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                      })}{" "}
+                      •{" "}
+                      {presetDates["48h"].toLocaleTimeString("en-US", {
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                  </View>
+                </View>
               </TouchableOpacity>
 
+              {/* 24h Before */}
               <TouchableOpacity
-                style={[styles.presetChip, activePreset === "24h" && styles.presetChipActive]}
+                style={[styles.presetCard, activePreset === "24h" && styles.presetCardActive]}
                 onPress={() => applyPreset("24h")}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.presetChipText, activePreset === "24h" && styles.presetChipTextActive]}>
-                  24h Before
-                </Text>
+                <View style={styles.presetCardLeft}>
+                  <View style={[styles.presetRadio, activePreset === "24h" && styles.presetRadioActive]}>
+                    {activePreset === "24h" && <View style={styles.radioDot} />}
+                  </View>
+                  <View>
+                    <Text style={[styles.presetTitle, activePreset === "24h" && styles.presetTitleActive]}>
+                      24 Hours Before (1 Day)
+                    </Text>
+                    <Text style={styles.presetTimeSubtitle}>
+                      {presetDates["24h"].toLocaleDateString("en-US", {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                      })}{" "}
+                      •{" "}
+                      {presetDates["24h"].toLocaleTimeString("en-US", {
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                  </View>
+                </View>
               </TouchableOpacity>
 
+              {/* Custom Date & Time */}
               <TouchableOpacity
-                style={[styles.presetChip, activePreset === "12h" && styles.presetChipActive]}
-                onPress={() => applyPreset("12h")}
+                style={[styles.presetCard, activePreset === "custom" && styles.presetCardActive]}
+                onPress={() => applyPreset("custom")}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.presetChipText, activePreset === "12h" && styles.presetChipTextActive]}>
-                  12h Before
-                </Text>
+                <View style={styles.presetCardLeft}>
+                  <View style={[styles.presetRadio, activePreset === "custom" && styles.presetRadioActive]}>
+                    {activePreset === "custom" && <View style={styles.radioDot} />}
+                  </View>
+                  <View>
+                    <Text style={[styles.presetTitle, activePreset === "custom" && styles.presetTitleActive]}>
+                      Custom Date & Time
+                    </Text>
+                    <Text style={styles.presetTimeSubtitle}>Adjust day, hour, and minute manually</Text>
+                  </View>
+                </View>
               </TouchableOpacity>
             </View>
 
-            {/* Custom Date Controls */}
-            <View style={styles.pickerSection}>
-              <Text style={styles.pickerLabel}>DATE</Text>
-              <View style={styles.dateSelectorRow}>
-                <TouchableOpacity
-                  style={styles.dayAdjustBtn}
-                  onPress={() => adjustDay(-1)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.dayAdjustText}>-1 Day</Text>
-                </TouchableOpacity>
-
-                <View style={styles.currentDateDisplay}>
-                  <Calendar size={14} color={colors.primary} />
-                  <Text style={styles.currentDateText}>{formattedDateStr}</Text>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.dayAdjustBtn}
-                  onPress={() => adjustDay(1)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.dayAdjustText}>+1 Day</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Time Controls */}
-              <Text style={[styles.pickerLabel, { marginTop: 16 }]}>TIME</Text>
-              <View style={styles.timeSelectorRow}>
-                {/* Hours selection */}
-                <View style={styles.timeColumn}>
-                  <Text style={styles.timeSubLabel}>Hour</Text>
-                  <View style={styles.chipsWrap}>
-                    {[9, 10, 11, 12, 1, 2, 3, 5, 8, 11].map((h) => {
-                      const h24 = isPm ? (h === 12 ? 12 : h + 12) : h === 12 ? 0 : h;
-                      const isSelected = currentHour12 === h;
-                      return (
-                        <TouchableOpacity
-                          key={h}
-                          style={[styles.miniChip, isSelected && styles.miniChipActive]}
-                          onPress={() => adjustHour(h24)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={[styles.miniChipText, isSelected && styles.miniChipTextActive]}>
-                            {h}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-
-                {/* Minutes selection */}
-                <View style={styles.timeColumn}>
-                  <Text style={styles.timeSubLabel}>Minute</Text>
-                  <View style={styles.chipsWrap}>
-                    {[0, 15, 30, 45, 59].map((m) => {
-                      const isSelected = Math.abs(currentMinute - m) < 5;
-                      return (
-                        <TouchableOpacity
-                          key={m}
-                          style={[styles.miniChip, isSelected && styles.miniChipActive]}
-                          onPress={() => adjustMinute(m)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={[styles.miniChipText, isSelected && styles.miniChipTextActive]}>
-                            :{m < 10 ? `0${m}` : m}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-
-                {/* AM / PM Toggle */}
-                <View style={styles.amPmCol}>
-                  <Text style={styles.timeSubLabel}>AM/PM</Text>
+            {/* Custom Date & Time Controls (Shown when Custom is selected) */}
+            {activePreset === "custom" && (
+              <View style={styles.customBox}>
+                {/* Date Stepper */}
+                <Text style={styles.stepperSectionLabel}>DATE</Text>
+                <View style={styles.dateBar}>
                   <TouchableOpacity
-                    style={[styles.amPmBtn, !isPm && styles.amPmBtnActive]}
-                    onPress={isPm ? toggleAmPm : undefined}
+                    style={styles.arrowBtn}
+                    onPress={() => adjustDay(-1)}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.amPmText, !isPm && styles.amPmTextActive]}>AM</Text>
+                    <ChevronLeft size={18} color={colors.textPrimary} />
                   </TouchableOpacity>
+
+                  <View style={styles.dateBarCenter}>
+                    <Calendar size={15} color={colors.primary} />
+                    <Text style={styles.dateBarText}>{formattedDateStr}</Text>
+                  </View>
+
                   <TouchableOpacity
-                    style={[styles.amPmBtn, isPm && styles.amPmBtnActive]}
-                    onPress={!isPm ? toggleAmPm : undefined}
+                    style={styles.arrowBtn}
+                    onPress={() => adjustDay(1)}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.amPmText, isPm && styles.amPmTextActive]}>PM</Text>
+                    <ChevronRight size={18} color={colors.textPrimary} />
                   </TouchableOpacity>
                 </View>
-              </View>
-            </View>
 
-            {/* Live Summary Preview Box */}
+                {/* Digital Clock Stepper */}
+                <Text style={[styles.stepperSectionLabel, { marginTop: 14 }]}>TIME</Text>
+                <View style={styles.clockRow}>
+                  {/* Hour Stepper */}
+                  <View style={styles.clockDigitBox}>
+                    <TouchableOpacity
+                      style={styles.stepBtn}
+                      onPress={() => adjustHourBy(1)}
+                      activeOpacity={0.7}
+                    >
+                      <Plus size={14} color={colors.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={styles.clockDigitText}>
+                      {currentHour12 < 10 ? `0${currentHour12}` : currentHour12}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.stepBtn}
+                      onPress={() => adjustHourBy(-1)}
+                      activeOpacity={0.7}
+                    >
+                      <Minus size={14} color={colors.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={styles.clockDigitLabel}>HOUR</Text>
+                  </View>
+
+                  <Text style={styles.clockColon}>:</Text>
+
+                  {/* Minute Stepper */}
+                  <View style={styles.clockDigitBox}>
+                    <TouchableOpacity
+                      style={styles.stepBtn}
+                      onPress={() => adjustMinuteBy(15)}
+                      activeOpacity={0.7}
+                    >
+                      <Plus size={14} color={colors.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={styles.clockDigitText}>
+                      {currentMinute < 10 ? `0${currentMinute}` : currentMinute}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.stepBtn}
+                      onPress={() => adjustMinuteBy(-15)}
+                      activeOpacity={0.7}
+                    >
+                      <Minus size={14} color={colors.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={styles.clockDigitLabel}>MIN</Text>
+                  </View>
+
+                  {/* AM / PM Toggle */}
+                  <View style={styles.amPmContainer}>
+                    <TouchableOpacity
+                      style={[styles.amPmPill, !isPm && styles.amPmPillActive]}
+                      onPress={isPm ? toggleAmPm : undefined}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.amPmPillText, !isPm && styles.amPmPillTextActive]}>
+                        AM
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.amPmPill, isPm && styles.amPmPillActive]}
+                      onPress={!isPm ? toggleAmPm : undefined}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.amPmPillText, isPm && styles.amPmPillTextActive]}>
+                        PM
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Live Alarm Confirmation Banner */}
             <View style={styles.previewBox}>
               <View style={styles.previewIconBox}>
-                <Clock size={16} color="#b45309" />
+                <Clock size={18} color="#b45309" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.previewMicroTitle}>ALARM WILL RING ON:</Text>
+                <Text style={styles.previewMicroTitle}>ALARM WILL ALERT YOU ON:</Text>
                 <Text style={styles.previewDateText}>
                   {formattedDateStr} • {formattedTimeStr}
                 </Text>
                 <Text style={styles.previewHint}>
-                  Interactive lockscreen notifications allow 24h snooze or instant stop.
+                  Rings with alarm sound & vibration. Includes 24h lockscreen snooze.
                 </Text>
               </View>
             </View>
@@ -451,7 +547,7 @@ export const AssignmentAlarmModal: React.FC<AssignmentAlarmModalProps> = ({
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <>
-                  <Bell size={15} color="#fff" />
+                  <Bell size={16} color="#fff" />
                   <Text style={styles.saveBtnText}>
                     {existingAlarm ? "Update Alarm" : "Set Assignment Alarm"}
                   </Text>
@@ -468,27 +564,27 @@ export const AssignmentAlarmModal: React.FC<AssignmentAlarmModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     justifyContent: "center",
     alignItems: "center",
     padding: 16,
   },
   modalCard: {
     backgroundColor: colors.surface,
-    borderRadius: 20,
+    borderRadius: 22,
     width: "100%",
     maxWidth: 440,
     maxHeight: "88%",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 10,
     overflow: "hidden",
   },
   header: {
     padding: 18,
-    paddingBottom: 12,
+    paddingBottom: 14,
     borderBottomWidth: 1,
     borderBottomColor: colors.surfaceBorder,
     backgroundColor: colors.surfaceSecondary,
@@ -548,7 +644,7 @@ const styles = StyleSheet.create({
   },
   scrollBody: {
     padding: 18,
-    paddingTop: 12,
+    paddingTop: 14,
   },
   existingAlarmBanner: {
     backgroundColor: "#ecfdf5",
@@ -618,151 +714,186 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     color: colors.textPrimary,
-    marginBottom: 3,
-  },
-  presetHint: {
-    fontSize: 11,
-    color: colors.textMuted,
     marginBottom: 10,
-    lineHeight: 15,
   },
-  presetRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginBottom: 16,
+  presetCardsContainer: {
+    gap: 8,
+    marginBottom: 14,
   },
-  presetChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
+  presetCard: {
     backgroundColor: colors.surfaceSecondary,
-    borderWidth: 1,
+    borderWidth: 1.2,
     borderColor: colors.surfaceBorder,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: 14,
+    padding: 12,
   },
-  presetChipActive: {
-    backgroundColor: "#fef3c7",
+  presetCardActive: {
+    backgroundColor: "#fffbeb",
     borderColor: "#f59e0b",
   },
-  presetChipText: {
-    fontSize: 11,
+  presetCardLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  presetRadio: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: colors.textMuted,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  presetRadioActive: {
+    borderColor: "#b45309",
+  },
+  radioDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: "#b45309",
+  },
+  presetTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  presetTitle: {
+    fontSize: 13,
     fontWeight: "600",
-    color: colors.textSecondary,
+    color: colors.textPrimary,
   },
-  presetChipTextActive: {
-    color: "#b45309",
+  presetTitleActive: {
     fontWeight: "700",
+    color: "#92400e",
   },
-  pickerSection: {
+  recommendBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#fef3c7",
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 5,
+  },
+  recommendText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#b45309",
+  },
+  presetTimeSubtitle: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 2,
+    fontWeight: "500",
+  },
+  customBox: {
     backgroundColor: colors.surfaceSecondary,
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
-    marginBottom: 16,
+    marginBottom: 14,
   },
-  pickerLabel: {
+  stepperSectionLabel: {
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 0.6,
     color: colors.textMuted,
     marginBottom: 8,
   },
-  dateSelectorRow: {
+  dateBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-  },
-  dayAdjustBtn: {
     backgroundColor: colors.surface,
+    borderRadius: 10,
+    padding: 6,
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
   },
-  dayAdjustText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: colors.textSecondary,
+  arrowBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceSecondary,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  currentDateDisplay: {
+  dateBarCenter: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
   },
-  currentDateText: {
+  dateBarText: {
     fontSize: 13,
     fontWeight: "700",
     color: colors.textPrimary,
   },
-  timeSelectorRow: {
+  clockRow: {
     flexDirection: "row",
-    gap: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
   },
-  timeColumn: {
-    flex: 2,
-  },
-  timeSubLabel: {
-    fontSize: 10,
-    color: colors.textMuted,
-    marginBottom: 4,
-    fontWeight: "600",
-  },
-  chipsWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+  clockDigitBox: {
+    alignItems: "center",
     gap: 4,
   },
-  miniChip: {
+  stepBtn: {
+    width: 32,
+    height: 28,
+    borderRadius: 6,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
-    width: 28,
-    height: 26,
-    borderRadius: 6,
     justifyContent: "center",
     alignItems: "center",
   },
-  miniChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  miniChipText: {
-    fontSize: 11,
-    fontWeight: "600",
+  clockDigitText: {
+    fontSize: 22,
+    fontWeight: "800",
     color: colors.textPrimary,
+    minWidth: 36,
+    textAlign: "center",
+    paddingVertical: 2,
   },
-  miniChipTextActive: {
-    color: "#fff",
-    fontWeight: "700",
+  clockDigitLabel: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: colors.textMuted,
+    letterSpacing: 0.5,
   },
-  amPmCol: {
-    flex: 1,
-    justifyContent: "flex-end",
-    gap: 4,
+  clockColon: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: colors.textMuted,
+    marginBottom: 18,
   },
-  amPmBtn: {
+  amPmContainer: {
+    gap: 6,
+    marginLeft: 6,
+    marginBottom: 14,
+  },
+  amPmPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
-    borderRadius: 6,
-    paddingVertical: 5,
-    alignItems: "center",
   },
-  amPmBtnActive: {
+  amPmPillActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
-  amPmText: {
-    fontSize: 11,
+  amPmPillText: {
+    fontSize: 12,
     fontWeight: "700",
     color: colors.textSecondary,
   },
-  amPmTextActive: {
+  amPmPillTextActive: {
     color: "#fff",
   },
   previewBox: {
