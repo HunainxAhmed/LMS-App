@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { colors } from "../theme/colors";
-import { Clock, Download, FileText, ChevronRight } from "lucide-react-native";
+import { Clock, Download, FileText, ChevronRight, AlarmClock } from "lucide-react-native";
 
 interface AssignmentCardProps {
   id: string;
@@ -16,6 +16,9 @@ interface AssignmentCardProps {
   showManualCheck?: boolean;
   attachmentUrl?: string;
   attachmentName?: string;
+  alarmScheduledTime?: number;
+  isAlarmSnoozed?: boolean;
+  onSetAlarm?: () => void;
   onToggleComplete?: (completed: boolean) => void;
   onDownloadAttachment?: () => void;
   onPress?: () => void;
@@ -32,6 +35,9 @@ export const AssignmentCard: React.FC<AssignmentCardProps> = ({
   personalCompleted,
   attachmentUrl,
   attachmentName,
+  alarmScheduledTime,
+  isAlarmSnoozed,
+  onSetAlarm,
   onDownloadAttachment,
   onPress,
 }) => {
@@ -94,23 +100,50 @@ export const AssignmentCard: React.FC<AssignmentCardProps> = ({
       <View style={styles.footerRow}>
         <View style={styles.dateCol}>
           <Clock size={11} color={isMissed ? colors.statusDanger : colors.textMuted} />
-          <Text style={[styles.dateText, isMissed && styles.dateTextDanger]}>
+          <Text style={[styles.dateText, isMissed && styles.dateTextDanger]} numberOfLines={1}>
             {deadlineRaw || "No deadline stated"}
           </Text>
         </View>
 
-        {attachmentUrl && onDownloadAttachment && (
-          <TouchableOpacity
-            style={styles.downloadChip}
-            onPress={onDownloadAttachment}
-            activeOpacity={0.7}
-          >
-            <Download size={11} color={colors.primary} />
-            <Text style={styles.downloadChipText} numberOfLines={1}>
-              Brief
-            </Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.footerActionRow}>
+          {onSetAlarm && !isMissed && !personalCompleted && submissionStatus !== "SUBMITTED" && (
+            <TouchableOpacity
+              style={alarmScheduledTime ? styles.alarmChipActive : styles.alarmChip}
+              onPress={onSetAlarm}
+              activeOpacity={0.7}
+            >
+              <AlarmClock
+                size={11}
+                color={alarmScheduledTime ? "#b45309" : colors.textSecondary}
+              />
+              <Text
+                style={alarmScheduledTime ? styles.alarmChipTextActive : styles.alarmChipText}
+              >
+                {alarmScheduledTime
+                  ? `${isAlarmSnoozed ? "Snoozed" : "Alarm"}: ${new Date(
+                      alarmScheduledTime
+                    ).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })}`
+                  : "Alarm"}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {attachmentUrl && onDownloadAttachment && (
+            <TouchableOpacity
+              style={styles.downloadChip}
+              onPress={onDownloadAttachment}
+              activeOpacity={0.7}
+            >
+              <Download size={11} color={colors.primary} />
+              <Text style={styles.downloadChipText} numberOfLines={1}>
+                Brief
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -204,5 +237,42 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     color: colors.primary,
+  },
+  footerActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  alarmChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 0.5,
+    borderColor: colors.surfaceBorder,
+  },
+  alarmChipActive: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: "#fef3c7",
+    borderWidth: 0.8,
+    borderColor: "#f59e0b",
+  },
+  alarmChipText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: colors.textSecondary,
+  },
+  alarmChipTextActive: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#b45309",
   },
 });

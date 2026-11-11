@@ -1,16 +1,21 @@
 import React, { useEffect, useState } from "react";
+import { Platform } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
+import * as Notifications from "expo-notifications";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { queryClient } from "../services/queryClient";
 import { useAuthStore } from "../stores/authStore";
+import { useAlarmStore } from "../stores/alarmStore";
 import { setupNotifications } from "../services/notifications";
 import { checkForAppUpdate, UpdateInfo } from "../services/updater";
 import { InAppUpdateModal } from "../components/InAppUpdateModal";
+import { DownloadToast } from "../components/DownloadToast";
 
 function RootNavigation() {
   const { isAuthenticated, account, isLoading, checkAuth } = useAuthStore();
+  const { loadAlarms, snoozeAlarm, cancelAlarm } = useAlarmStore();
   const segments = useSegments();
   const router = useRouter();
 
@@ -20,6 +25,26 @@ function RootNavigation() {
   useEffect(() => {
     checkAuth().catch(() => {});
     setupNotifications().catch(() => {});
+    loadAlarms().catch(() => {});
+
+    // Listen to notification interactions (lockscreen / notification shade Snooze & Dismiss)
+    let notificationSub: Notifications.Subscription | null = null;
+    if (Platform.OS !== "web") {
+      notificationSub = Notifications.addNotificationResponseReceivedListener(async (response) => {
+        const actionId = response.actionIdentifier;
+        const data = response.notification.request.content.data;
+        if (data?.type === "ASSIGNMENT_ALARM" && data?.assignmentId) {
+          const assignId = String(data.assignmentId);
+          if (actionId === "SNOOZE_24H") {
+            await snoozeAlarm(assignId, 24);
+          } else if (actionId === "STOP_ALARM") {
+            await cancelAlarm(assignId);
+          } else {
+            router.push("/(tabs)/assignments" as any);
+          }
+        }
+      });
+    }
 
     // Quietly check for dynamic in-app updates in the background
     const updateTimer = setTimeout(() => {
@@ -33,7 +58,10 @@ function RootNavigation() {
         .catch(() => {});
     }, 2500);
 
-    return () => clearTimeout(updateTimer);
+    return () => {
+      clearTimeout(updateTimer);
+      if (notificationSub) notificationSub.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -83,6 +111,9 @@ function RootNavigation() {
         updateInfo={updateInfo}
         onDismiss={() => setShowUpdateModal(false)}
       />
+
+      {/* Floating Modern Download Completion Toast */}
+      <DownloadToast />
     </>
   );
 }

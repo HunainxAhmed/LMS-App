@@ -22,6 +22,7 @@ import { colors } from "../../theme/colors";
 import { api } from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
 import { SyncBanner } from "../../components/SyncBanner";
+import { showDownloadSuccessToast } from "../../stores/downloadToastStore";
 import { saveAcademicDataToSQLite, getOfflineAcademicDataFromSQLite } from "../../services/offlineDb";
 import { getDownloadDirectory, getSecureItem, KEYS } from "../../services/storage";
 import {
@@ -355,25 +356,14 @@ export default function LecturesScreen() {
           message: `${name} saved to downloads.`,
         });
 
-        Alert.alert(
-          "Download Complete! ✅",
-          `"${name}" has been saved to your downloads.`,
-          [
-            { text: "Done", style: "cancel" },
-            {
-              text: "Open File",
-              onPress: () =>
-                openDownloadedFile({
-                  id: "",
-                  fileName: name,
-                  fileUri: res.uri,
-                  mimeType: getMimeType(name),
-                  category: "lecture",
-                  downloadedAt: new Date().toISOString(),
-                }),
-            },
-          ]
-        );
+        // Modern, non-blocking in-app download success toast
+        showDownloadSuccessToast({
+          fileName: name,
+          fileUri: res.uri,
+          mimeType: getMimeType(name),
+          category: "lecture",
+          courseName: selectedCourse?.title,
+        });
       } else {
         try {
           await FileSystem.deleteAsync(fileUri, { idempotent: true });
@@ -654,25 +644,14 @@ export default function LecturesScreen() {
           message: `${zipFileName} saved to ${targetDir}`,
         });
 
-        Alert.alert(
-          "ZIP Archive Ready! 🎉",
-          `All lectures for ${selectedCourse?.title} have been saved to your downloads.`,
-          [
-            { text: "Done", style: "cancel" },
-            {
-              text: "Open File",
-              onPress: () =>
-                openDownloadedFile({
-                  id: "",
-                  fileName: zipFileName,
-                  fileUri: result.uri,
-                  mimeType: "application/zip",
-                  category: "archive",
-                  downloadedAt: new Date().toISOString(),
-                }),
-            },
-          ]
-        );
+        // Modern, non-blocking in-app download success toast
+        showDownloadSuccessToast({
+          fileName: zipFileName,
+          fileUri: result.uri,
+          mimeType: "application/zip",
+          category: "lecture",
+          courseName: selectedCourse?.title,
+        });
       } else {
         useDownloadQueueStore.getState().clearActiveDownload();
         await dismissDownloadNotification();

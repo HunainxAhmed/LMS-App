@@ -21,6 +21,8 @@ import { SyncBanner } from "../../components/SyncBanner";
 import { MetricCard } from "../../components/MetricCard";
 import { AttendanceCard } from "../../components/AttendanceCard";
 import { AssignmentCard } from "../../components/AssignmentCard";
+import { AssignmentAlarmModal } from "../../components/AssignmentAlarmModal";
+import { useAlarmStore } from "../../stores/alarmStore";
 import {
   Clock,
   AlertCircle,
@@ -40,7 +42,10 @@ import {
 export default function DashboardScreen() {
   const router = useRouter();
   const { account, isSyncing, syncProgressStep, syncNow } = useAuthStore();
+  const { alarms } = useAlarmStore();
   const [offlineData, setOfflineData] = useState<any>(null);
+  const [alarmTargetAssignment, setAlarmTargetAssignment] = useState<any | null>(null);
+  const [showAlarmModal, setShowAlarmModal] = useState<boolean>(false);
   const [homePrefs, setHomePrefs] = useState<HomeScreenPreferences>({
     showPending: true,
     showMissed: true,
@@ -300,6 +305,13 @@ export default function DashboardScreen() {
                       showManualCheck={false}
                       attachmentUrl={assign.teacher_attachment_url || assign.attachment_url}
                       attachmentName={assign.teacher_attachment_name || assign.attachment_name}
+                      alarmScheduledTime={alarms[assign.id]?.triggerTimestamp}
+                      isAlarmSnoozed={alarms[assign.id]?.isSnoozed}
+                      onSetAlarm={() => {
+                        setAlarmTargetAssignment(assign);
+                        setShowAlarmModal(true);
+                      }}
+                      onPress={() => router.push("/(tabs)/assignments" as any)}
                     />
                   ))
                 ) : (
@@ -437,6 +449,16 @@ export default function DashboardScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* Assignment Alarm & Reminder Modal */}
+      <AssignmentAlarmModal
+        visible={showAlarmModal}
+        assignment={alarmTargetAssignment}
+        onClose={() => {
+          setShowAlarmModal(false);
+          setAlarmTargetAssignment(null);
+        }}
+      />
     </SafeAreaView>
   );
 }

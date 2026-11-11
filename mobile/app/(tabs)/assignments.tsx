@@ -18,7 +18,10 @@ import * as DocumentPicker from "expo-document-picker";
 import { colors } from "../../theme/colors";
 import { api } from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
+import { useAlarmStore } from "../../stores/alarmStore";
 import { SyncBanner } from "../../components/SyncBanner";
+import { AssignmentAlarmModal } from "../../components/AssignmentAlarmModal";
+import { showDownloadSuccessToast } from "../../stores/downloadToastStore";
 import { saveAcademicDataToSQLite, getOfflineAcademicDataFromSQLite } from "../../services/offlineDb";
 import { getDownloadDirectory, getSecureItem, saveSecureItem, KEYS } from "../../services/storage";
 import {
@@ -48,16 +51,21 @@ import {
   UploadCloud,
   Trash2,
   Calendar,
+  AlarmClock,
+  Bell,
 } from "lucide-react-native";
 
 export default function AssignmentsScreen() {
   const { account, isSyncing, syncProgressStep, syncNow } = useAuthStore();
+  const { alarms } = useAlarmStore();
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
   const [showCourseModal, setShowCourseModal] = useState<boolean>(false);
   const [offlineAssignments, setOfflineAssignments] = useState<any[] | null>(null);
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [alarmTargetAssignment, setAlarmTargetAssignment] = useState<any | null>(null);
+  const [showAlarmModal, setShowAlarmModal] = useState<boolean>(false);
 
   // Fetch registered courses from LMS
   const {
@@ -343,25 +351,15 @@ export default function AssignmentsScreen() {
           message: `${name} saved to downloads.`,
         });
 
-        Alert.alert(
-          "Download Complete! ✅",
-          `"${name}" has been saved to your downloads.`,
-          [
-            { text: "Done", style: "cancel" },
-            {
-              text: "Open File",
-              onPress: () =>
-                openDownloadedFile({
-                  id: "",
-                  fileName: name,
-                  fileUri: res.uri,
-                  mimeType: getMimeType(name),
-                  category: targetType === "submission" ? "submission" : "assignment",
-                  downloadedAt: new Date().toISOString(),
-                }),
-            },
-          ]
-        );
+        // Modern, non-blocking in-app download success toast
+        showDownloadSuccessToast({
+          fileName: name,
+          fileUri: res.uri,
+          mimeType: getMimeType(name),
+          fileSize: fileSize,
+          category: targetType === "submission" ? "submission" : "assignment",
+          courseName: selectedCourse?.title,
+        });
       } else {
         try {
           await FileSystem.deleteAsync(localUri, { idempotent: true });
@@ -728,6 +726,42 @@ export default function AssignmentsScreen() {
                             </Text>
                           </View>
                         ) : null}
+
+                        {/* Assignment Alarm Button for Pending Assignment */}
+                        {!isSubmitted && (
+                          <TouchableOpacity
+                            style={alarms[assign.id] ? styles.alarmChipActive : styles.alarmChip}
+                            onPress={() => {
+                              setAlarmTargetAssignment({
+                                ...assign,
+                                courseName: selectedCourse?.title,
+                              });
+                              setShowAlarmModal(true);
+                            }}
+                            activeOpacity={0.75}
+                          >
+                            <AlarmClock
+                              size={11}
+                              color={alarms[assign.id] ? "#b45309" : colors.textSecondary}
+                            />
+                            <Text
+                              style={
+                                alarms[assign.id]
+                                  ? styles.alarmChipTextActive
+                                  : styles.alarmChipText
+                              }
+                            >
+                              {alarms[assign.id]
+                                ? `${alarms[assign.id].isSnoozed ? "Snoozed" : "Alarm"}: ${new Date(
+                                    alarms[assign.id].triggerTimestamp
+                                  ).toLocaleDateString("en-US", {
+                                    month: "short",
+                                    day: "numeric",
+                                  })}`
+                                : "Set Alarm"}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                     </View>
 
@@ -898,6 +932,16 @@ export default function AssignmentsScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Assignment Alarm & Reminder Modal */}
+      <AssignmentAlarmModal
+        visible={showAlarmModal}
+        assignment={alarmTargetAssignment}
+        onClose={() => {
+          setShowAlarmModal(false);
+          setAlarmTargetAssignment(null);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -1203,6 +1247,40 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#b45309",
     textTransform: "uppercase",
+  },
+  alarmChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginTop: 2,
+  },
+  alarmChipActive: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#fef3c7",
+    borderWidth: 1,
+    borderColor: "#f59e0b",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginTop: 2,
+  },
+  alarmChipText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: colors.textSecondary,
+  },
+  alarmChipTextActive: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#b45309",
   },
 
   /* Compact Attachment Chips Bar */
