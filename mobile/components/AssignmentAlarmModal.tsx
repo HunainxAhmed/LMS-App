@@ -66,7 +66,7 @@ export const AssignmentAlarmModal: React.FC<AssignmentAlarmModalProps> = ({
 
   // Selected trigger date state
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [activePreset, setActivePreset] = useState<"72h" | "48h" | "24h" | "custom">("72h");
+  const [activePreset, setActivePreset] = useState<"1m" | "1h" | "72h" | "48h" | "24h" | "custom">("72h");
 
   // Re-initialize default 72h-prior date whenever modal opens for this assignment
   useEffect(() => {
@@ -97,24 +97,35 @@ export const AssignmentAlarmModal: React.FC<AssignmentAlarmModalProps> = ({
     };
 
     return {
+      "1m": new Date(now + 60 * 1000), // 1 minute from now (for immediate test)
+      "1h": new Date(now + 60 * 60 * 1000), // 1 hour from now
       "72h": getDateForHours(72),
       "48h": getDateForHours(48),
       "24h": getDateForHours(24),
     };
-  }, [parsedDeadline]);
+  }, [parsedDeadline, visible]);
 
-  const applyPreset = (preset: "72h" | "48h" | "24h" | "custom") => {
+  const applyPreset = (preset: "1m" | "1h" | "72h" | "48h" | "24h" | "custom") => {
     setActivePreset(preset);
     if (preset !== "custom") {
       setSelectedDate(presetDates[preset]);
     }
   };
 
-  // Adjust date by days
+  // Adjust date by days (allows selecting today and stepping forward)
   const adjustDay = (days: number) => {
     setActivePreset("custom");
     const next = new Date(selectedDate.getTime() + days * 24 * 3600 * 1000);
-    if (next.getTime() > Date.now()) {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    // Allow user to step back to Today or any future day
+    if (next.getTime() >= startOfToday.getTime()) {
+      // If moving to today and time has already passed, adjust to 15 mins in future
+      if (next.getTime() <= Date.now()) {
+        const bumped = new Date(Date.now() + 15 * 60 * 1000);
+        next.setHours(bumped.getHours(), bumped.getMinutes(), 0, 0);
+      }
       setSelectedDate(next);
     }
   };
@@ -151,13 +162,19 @@ export const AssignmentAlarmModal: React.FC<AssignmentAlarmModalProps> = ({
   const handleSaveAlarm = async () => {
     if (!assignment) return;
     try {
+      let finalTriggerDate = selectedDate;
+      // If trigger time is within the next 15 seconds or slightly in past, ensure it is at least 30s in future
+      if (finalTriggerDate.getTime() <= Date.now() + 15000) {
+        finalTriggerDate = new Date(Date.now() + 45000);
+      }
+
       const saved = await setAlarm({
         assignmentId: assignment.id,
         courseName,
         title,
         deadlineRaw,
         deadlineIso,
-        triggerDate: selectedDate,
+        triggerDate: finalTriggerDate,
       });
       if (onAlarmSaved) onAlarmSaved(saved);
       onClose();
@@ -386,6 +403,60 @@ export const AssignmentAlarmModal: React.FC<AssignmentAlarmModalProps> = ({
                         hour: "numeric",
                         minute: "2-digit",
                       })}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+
+              {/* In 1 Hour */}
+              <TouchableOpacity
+                style={[styles.presetCard, activePreset === "1h" && styles.presetCardActive]}
+                onPress={() => applyPreset("1h")}
+                activeOpacity={0.7}
+              >
+                <View style={styles.presetCardLeft}>
+                  <View style={[styles.presetRadio, activePreset === "1h" && styles.presetRadioActive]}>
+                    {activePreset === "1h" && <View style={styles.radioDot} />}
+                  </View>
+                  <View>
+                    <Text style={[styles.presetTitle, activePreset === "1h" && styles.presetTitleActive]}>
+                      In 1 Hour (Today)
+                    </Text>
+                    <Text style={styles.presetTimeSubtitle}>
+                      {presetDates["1h"].toLocaleTimeString("en-US", {
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}{" "}
+                      • Quick reminder today
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+
+              {/* ⚡️ Test Alarm (In 1 Minute) */}
+              <TouchableOpacity
+                style={[styles.presetCard, activePreset === "1m" && styles.presetCardActive]}
+                onPress={() => applyPreset("1m")}
+                activeOpacity={0.7}
+              >
+                <View style={styles.presetCardLeft}>
+                  <View style={[styles.presetRadio, activePreset === "1m" && styles.presetRadioActive]}>
+                    {activePreset === "1m" && <View style={styles.radioDot} />}
+                  </View>
+                  <View>
+                    <View style={styles.presetTitleRow}>
+                      <Text style={[styles.presetTitle, activePreset === "1m" && styles.presetTitleActive]}>
+                        ⚡️ Test Alarm (In 1 Minute)
+                      </Text>
+                    </View>
+                    <Text style={styles.presetTimeSubtitle}>
+                      Fires at{" "}
+                      {presetDates["1m"].toLocaleTimeString("en-US", {
+                        hour: "numeric",
+                        minute: "2-digit",
+                        second: "2-digit",
+                      })}{" "}
+                      • Instant ring verification
                     </Text>
                   </View>
                 </View>

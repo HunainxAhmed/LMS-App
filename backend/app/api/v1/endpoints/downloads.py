@@ -90,26 +90,10 @@ async def ensure_active_portal_session(
         except Exception as e:
             logger.warning(f"Could not decrypt session cookies: {e}")
 
-    # Check if cookies exist and contain LMS PHP session cookie
+    # Fast path: If cookies exist and contain PHPSESSID, return immediately to download at full speed!
+    # The caller validates if the response is an HTML login redirect and triggers force_fresh re-auth only if needed.
     if cookies and "PHPSESSID" in cookies and not force_fresh:
-        try:
-            test_url = "https://lms.bahria.edu.pk/Student/Dashboard.php"
-            req_headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                "Referer": "https://lms.bahria.edu.pk/Student/Dashboard.php",
-            }
-            async with httpx.AsyncClient(cookies=cookies, headers=req_headers, verify=False, timeout=6.0, follow_redirects=True) as client:
-                r = await client.get(test_url)
-                url_str = str(r.url).lower()
-                is_on_lms = "lms.bahria.edu.pk" in url_str
-                is_on_cms = "cms.bahria.edu.pk" in url_str
-                has_cms_markers = "aspirerootpath" in r.text.lower() or "cms - bahria" in r.text.lower() or "livesite" in r.text.lower()
-                has_login_markers = "login" in url_str or "<form" in r.text.lower()
-
-                if r.status_code == 200 and is_on_lms and not is_on_cms and not has_cms_markers and not has_login_markers:
-                    return cookies
-        except Exception as e:
-            logger.debug(f"Session quick ping check: {e}")
+        return cookies
 
     # Session is expired or missing PHPSESSID -> Re-authenticate with stored credentials
     logger.info(f"Re-authenticating Bahria LMS session for {account.enrollment}...")
@@ -200,16 +184,20 @@ async def download_single_file(
             if target_type == "submission":
                 # Check if file was uploaded through app and stored locally
                 sub_file_name = assign.submission_attachment_name or filename or "submission.pdf"
-                local_path = os.path.join(os.getcwd(), "backend", "uploads", "submissions", f"{assignment_id}_{sub_file_name}")
-                if os.path.exists(local_path):
-                    return FileResponse(
-                        path=local_path,
-                        filename=sub_file_name,
-                        headers={
-                            "Content-Disposition": f'attachment; filename="{sub_file_name}"',
-                            "Access-Control-Expose-Headers": "Content-Disposition",
-                        }
-                    )
+                candidate_paths = [
+                    os.path.join(os.getcwd(), "backend", "uploads", "submissions", f"{assignment_id}_{sub_file_name}"),
+                    os.path.join(os.getcwd(), "uploads", "submissions", f"{assignment_id}_{sub_file_name}"),
+                ]
+                for local_path in candidate_paths:
+                    if os.path.exists(local_path):
+                        return FileResponse(
+                            path=local_path,
+                            filename=sub_file_name,
+                            headers={
+                                "Content-Disposition": f'attachment; filename="{sub_file_name}"',
+                                "Access-Control-Expose-Headers": "Content-Disposition",
+                            }
+                        )
                 if assign.submission_attachment_url and assign.submission_attachment_url.startswith("http"):
                     target_url = assign.submission_attachment_url
                     target_name = sub_file_name

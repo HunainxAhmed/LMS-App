@@ -200,10 +200,22 @@ export async function syncAndGetDownloadedFiles(): Promise<DownloadedItem[]> {
       if (dirInfo.exists && dirInfo.isDirectory) {
         const diskFiles = await FileSystem.readDirectoryAsync(targetDir);
         const indexedNames = new Set(items.map((i) => i.fileName.toLowerCase()));
+        const indexedUris = new Set(items.map((i) => i.fileUri.toLowerCase()));
 
         for (const fName of diskFiles) {
-          if (!indexedNames.has(fName.toLowerCase())) {
-            const fUri = `${targetDir}${fName}`;
+          const fUri = `${targetDir}${fName}`;
+          const cleanName = fName.replace(/^\d{10,14}_/, "");
+          const isAlreadyIndexed =
+            indexedNames.has(fName.toLowerCase()) ||
+            indexedNames.has(cleanName.toLowerCase()) ||
+            indexedUris.has(fUri.toLowerCase()) ||
+            items.some(
+              (i) =>
+                i.fileUri.toLowerCase().endsWith("/" + fName.toLowerCase()) ||
+                i.fileName.toLowerCase() === cleanName.toLowerCase()
+            );
+
+          if (!isAlreadyIndexed) {
             const fInfo = await FileSystem.getInfoAsync(fUri);
             if (fInfo.exists && !fInfo.isDirectory) {
               const size = fInfo.size || 0;
@@ -217,26 +229,50 @@ export async function syncAndGetDownloadedFiles(): Promise<DownloadedItem[]> {
                 `INSERT OR REPLACE INTO local_downloads 
                  (id, file_name, file_uri, file_size, course_name, category, mime_type, downloaded_at) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                [newId, fName, fUri, size, "CampusFlow Downloads", cat, getMimeType(fName), now]
+                [newId, cleanName, fUri, size, "CampusFlow Downloads", cat, getMimeType(cleanName), now]
               );
 
               items.push({
                 id: newId,
-                fileName: fName,
+                fileName: cleanName,
                 fileUri: fUri,
                 fileSize: size,
                 courseName: "CampusFlow Downloads",
                 category: cat,
-                mimeType: getMimeType(fName),
+                mimeType: getMimeType(cleanName),
                 downloadedAt: now,
               });
+              indexedNames.add(cleanName.toLowerCase());
+              indexedUris.add(fUri.toLowerCase());
             }
           }
         }
       }
     } catch {}
 
-    return items.sort(
+    // Deduplicate any overlapping entries in items (e.g. older scanned_ duplicate entries)
+    const uniqueItems: DownloadedItem[] = [];
+    const seenSignatures = new Set<string>();
+    const duplicateIdsToDelete: string[] = [];
+
+    for (const it of items) {
+      const baseClean = it.fileName.replace(/^\d{10,14}_/, "").toLowerCase();
+      const sig = `${baseClean}_${it.fileSize}`;
+      if (seenSignatures.has(sig)) {
+        if (it.id.startsWith("scanned_")) {
+          duplicateIdsToDelete.push(it.id);
+        }
+      } else {
+        seenSignatures.add(sig);
+        uniqueItems.push(it);
+      }
+    }
+
+    for (const dupId of duplicateIdsToDelete) {
+      await db.runAsync("DELETE FROM local_downloads WHERE id = ?", [dupId]).catch(() => {});
+    }
+
+    return uniqueItems.sort(
       (a, b) => new Date(b.downloadedAt).getTime() - new Date(a.downloadedAt).getTime()
     );
   } catch (err) {
@@ -361,24 +397,25 @@ export async function openDownloadedFile(item: DownloadedItem) {
         console.warn("getContentUriAsync failed:", androidErr);
       }
 
-      // If IntentLauncher couldn't open directly (no viewer app installed)
+      // Seamless fallback: If IntentLauncher couldn't resolve a single default viewer,
+      // immediately open the native system chooser via Sharing.shareAsync so the user can open it
+      // in Google Drive PDF Viewer, WPS Office, Acrobat, Chrome, etc., without an error dialog!
+      try {
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(activeUri, {
+            mimeType: mime,
+            dialogTitle: `Open ${item.fileName}`,
+          });
+          return;
+        }
+      } catch (shareErr) {
+        console.warn("Sharing fallback failed:", shareErr);
+      }
+
+      // If even Sharing is unavailable, notify student
       Alert.alert(
-        "No Viewer Found",
-        `No application was found to open "${item.fileName}". Please install an Office or PDF viewer (like WPS Office or Google Drive), or share the file to another app.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Share File",
-            onPress: async () => {
-              if (await Sharing.isAvailableAsync()) {
-                await Sharing.shareAsync(activeUri, {
-                  mimeType: mime,
-                  dialogTitle: `Share ${item.fileName}`,
-                });
-              }
-            },
-          },
-        ]
+        "Open Document",
+        `File is saved on device. Please install a PDF or Office viewer app to view "${item.fileName}".`
       );
       return;
     }

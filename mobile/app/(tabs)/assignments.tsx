@@ -291,7 +291,7 @@ export default function AssignmentsScreen() {
           await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
         }
       } catch {}
-      const localUri = `${baseDir}${Date.now()}_${name}`;
+      const localUri = `${baseDir}${name}`;
 
       // Build authenticated proxy URL through LMS ∞ backend
       const downloadUrl = await api.getFileDownloadUrl({

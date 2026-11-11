@@ -98,44 +98,81 @@ export default function CoursesScreen() {
           }
         }
 
+        // Load historical notified events so we never re-alert for past absences or the same status twice
+        let notifiedEvents = new Set<string>();
+        try {
+          const storedEvents = await getSecureItem("cf_notified_attendance_events");
+          if (storedEvents) {
+            const arr = JSON.parse(storedEvents);
+            if (Array.isArray(arr)) {
+              notifiedEvents = new Set(arr);
+            }
+          }
+        } catch {}
+
+        let didNotify = false;
+
+        // Only compare and notify if we already had a valid previous snapshot established
         if (known && Object.keys(known).length > 0) {
           for (const item of attendanceList) {
-            const key = item.code || item.title;
+            const key = item.course_code || item.course_title || item.id;
+            const title = item.course_title || item.course_code || "Course";
             const prev = known[key];
+
             if (prev) {
               if (item.absent_hours > prev.absent) {
-                notifyAttendanceUpdate({
-                  courseTitle: item.title,
-                  status: "ABSENT",
-                  percentage: item.percentage,
-                  presentHours: item.present_hours,
-                  totalHours: item.total_hours,
-                });
-                break;
+                const eventKey = `${key}_absent_${item.absent_hours}`;
+                if (!notifiedEvents.has(eventKey)) {
+                  notifiedEvents.add(eventKey);
+                  didNotify = true;
+                  notifyAttendanceUpdate({
+                    courseTitle: title,
+                    status: "ABSENT",
+                    percentage: item.percentage,
+                    presentHours: item.present_hours,
+                    totalHours: item.total_hours,
+                  });
+                  break;
+                }
               } else if (item.present_hours > prev.present) {
-                notifyAttendanceUpdate({
-                  courseTitle: item.title,
-                  status: "PRESENT",
-                  percentage: item.percentage,
-                  presentHours: item.present_hours,
-                  totalHours: item.total_hours,
-                });
-                break;
+                const eventKey = `${key}_present_${item.present_hours}`;
+                if (!notifiedEvents.has(eventKey)) {
+                  notifiedEvents.add(eventKey);
+                  didNotify = true;
+                  notifyAttendanceUpdate({
+                    courseTitle: title,
+                    status: "PRESENT",
+                    percentage: item.percentage,
+                    presentHours: item.present_hours,
+                    totalHours: item.total_hours,
+                  });
+                  break;
+                }
               } else if (item.percentage < 75.0 && prev.pct >= 75.0) {
-                notifyAttendanceUpdate({
-                  courseTitle: item.title,
-                  status: "WARNING",
-                  percentage: item.percentage,
-                });
-                break;
+                const eventKey = `${key}_warning_${Math.floor(item.percentage)}`;
+                if (!notifiedEvents.has(eventKey)) {
+                  notifiedEvents.add(eventKey);
+                  didNotify = true;
+                  notifyAttendanceUpdate({
+                    courseTitle: title,
+                    status: "WARNING",
+                    percentage: item.percentage,
+                  });
+                  break;
+                }
               }
             }
           }
         }
 
+        if (didNotify) {
+          saveSecureItem("cf_notified_attendance_events", JSON.stringify(Array.from(notifiedEvents))).catch(() => {});
+        }
+
         const newSnapshot: Record<string, { present: number; absent: number; pct: number }> = {};
         for (const item of attendanceList) {
-          newSnapshot[item.code || item.title] = {
+          const key = item.course_code || item.course_title || item.id;
+          newSnapshot[key] = {
             present: item.present_hours,
             absent: item.absent_hours,
             pct: item.percentage,
