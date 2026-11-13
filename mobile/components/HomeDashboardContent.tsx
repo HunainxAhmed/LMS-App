@@ -71,30 +71,8 @@ export const HomeDashboardContent: React.FC = () => {
     useCallback(() => {
       getHomeScreenPreferences().then(setHomePrefs);
       refetch();
-
-      const lastSync = account?.last_synced_at;
-      const isStale =
-        !lastSync ||
-        Date.now() - new Date(lastSync.endsWith("Z") ? lastSync : lastSync + "Z").getTime() > 60000;
-
-      if (isStale && !isSyncing) {
-        syncNow().catch(() => {});
-      }
-    }, [refetch, account?.last_synced_at, isSyncing, syncNow])
+    }, [refetch])
   );
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const lastSync = account?.last_synced_at;
-      const isStale =
-        !lastSync ||
-        Date.now() - new Date(lastSync.endsWith("Z") ? lastSync : lastSync + "Z").getTime() > 60000;
-      if (isStale && !isSyncing) {
-        syncNow().catch(() => {});
-      }
-    }, 20000);
-    return () => clearInterval(timer);
-  }, [account?.last_synced_at, isSyncing, syncNow]);
 
   const { data: notificationsData } = useQuery({
     queryKey: ["notifications_unread"],
@@ -175,11 +153,15 @@ export const HomeDashboardContent: React.FC = () => {
   const isOfflineMode = !dashboard && !!offlineData;
 
   const onRefresh = async () => {
-    if (!account) return;
     refetch();
-    syncNow().then(() => {
+  };
+
+  const handleManualSync = async () => {
+    if (!account || isSyncing) return;
+    try {
+      await syncNow();
       refetch();
-    });
+    } catch {}
   };
 
   const unreadCount = notificationsData?.unread_count || 0;
@@ -200,7 +182,7 @@ export const HomeDashboardContent: React.FC = () => {
         syncStep={syncProgressStep}
         lastSyncedAt={effectiveDashboard?.last_synced_at || account?.last_synced_at}
         cloudMonitoringEnabled={account?.cloud_monitoring_enabled}
-        onSyncPress={onRefresh}
+        onSyncPress={handleManualSync}
       />
 
       {/* Offline Mode Banner */}

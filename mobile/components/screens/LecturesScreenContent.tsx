@@ -99,41 +99,21 @@ export const LecturesScreenContent: React.FC = () => {
     useCallback(() => {
       refetchCourses();
       refetch();
-
-      const lastSync = account?.last_synced_at;
-      const isStale =
-        !lastSync ||
-        Date.now() - new Date(lastSync.endsWith("Z") ? lastSync : lastSync + "Z").getTime() > 60000;
-
-      if (isStale && !isSyncing) {
-        syncNow().catch(() => {});
-      }
-    }, [refetchCourses, refetch, account?.last_synced_at, isSyncing, syncNow])
+    }, [refetchCourses, refetch])
   );
-
-  // Periodic check while user stays on this screen: sync if data is stale
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const lastSync = account?.last_synced_at;
-      const isStale =
-        !lastSync ||
-        Date.now() - new Date(lastSync.endsWith("Z") ? lastSync : lastSync + "Z").getTime() > 60000;
-      if (isStale && !isSyncing) {
-        syncNow().catch(() => {});
-      }
-    }, 20000);
-    return () => clearInterval(timer);
-  }, [account?.last_synced_at, isSyncing, syncNow]);
 
   const onRefresh = async () => {
     refetchCourses();
     refetch();
-    if (account && !isSyncing) {
-      syncNow().then(() => {
-        refetchCourses();
-        refetch();
-      });
-    }
+  };
+
+  const handleManualSync = async () => {
+    if (!account || isSyncing) return;
+    try {
+      await syncNow();
+      refetchCourses();
+      refetch();
+    } catch {}
   };
 
   useEffect(() => {
@@ -686,7 +666,7 @@ export const LecturesScreenContent: React.FC = () => {
         syncStep={syncProgressStep}
         lastSyncedAt={account?.last_synced_at}
         cloudMonitoringEnabled={account?.cloud_monitoring_enabled}
-        onSyncPress={onRefresh}
+        onSyncPress={handleManualSync}
       />
 
       {/* Prominent Course Selector Dropdown (No 'All Enrolled Courses' mix) */}

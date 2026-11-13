@@ -52,16 +52,21 @@ export const SwipeableDownloadCard: React.FC<SwipeableDownloadCardProps> = ({
 
   const panResponder = useRef(
     PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         if (isMultiSelectMode) return false;
         // Claim horizontal swipe if dragging left (or right to close)
         const isHorizontal =
-          Math.abs(gestureState.dx) > 12 &&
-          Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.2;
-        if (!isHorizontal) return false;
+          Math.abs(gestureState.dx) > 8 &&
+          Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+        if (!isHorizontal) {
+          // If vertical gesture, immediately restore pager scroll
+          useTabStore.getState().setPagerScrollEnabled(true);
+          return false;
+        }
 
         // If closed, only respond to dragging left
-        if (!isOpenRef.current && gestureState.dx < -10) return true;
+        if (!isOpenRef.current && gestureState.dx < -6) return true;
         // If already open, respond to dragging in either direction
         if (isOpenRef.current) return true;
 
@@ -83,12 +88,11 @@ export const SwipeableDownloadCard: React.FC<SwipeableDownloadCardProps> = ({
         }
       },
       onPanResponderRelease: (_, gestureState) => {
-        useTabStore.getState().setPagerScrollEnabled(true);
         if (isMultiSelectMode) return;
 
         const effectiveDx = (isOpenRef.current ? -85 : 0) + gestureState.dx;
 
-        if (effectiveDx < -130 || gestureState.vx < -0.6) {
+        if (effectiveDx < -110 || gestureState.vx < -0.5) {
           // Full swipe -> Slide all the way out and delete
           Animated.timing(translateX, {
             toValue: -400,
@@ -98,8 +102,9 @@ export const SwipeableDownloadCard: React.FC<SwipeableDownloadCardProps> = ({
             onDelete();
             translateX.setValue(0);
             setIsOpen(false);
+            useTabStore.getState().setPagerScrollEnabled(true);
           });
-        } else if (effectiveDx < -45) {
+        } else if (effectiveDx < -40) {
           // Snap open to reveal delete button
           Animated.spring(translateX, {
             toValue: -85,
@@ -113,7 +118,6 @@ export const SwipeableDownloadCard: React.FC<SwipeableDownloadCardProps> = ({
         }
       },
       onPanResponderTerminate: () => {
-        useTabStore.getState().setPagerScrollEnabled(true);
         closeSwipe();
       },
     })
@@ -161,7 +165,20 @@ export const SwipeableDownloadCard: React.FC<SwipeableDownloadCardProps> = ({
   };
 
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      onTouchStart={() => {
+        if (!isMultiSelectMode) {
+          useTabStore.getState().setPagerScrollEnabled(false);
+        }
+      }}
+      onTouchEnd={() => {
+        useTabStore.getState().setPagerScrollEnabled(true);
+      }}
+      onTouchCancel={() => {
+        useTabStore.getState().setPagerScrollEnabled(true);
+      }}
+    >
       {/* Hidden Swipe Action Underlay */}
       <View style={styles.underlay}>
         <TouchableOpacity

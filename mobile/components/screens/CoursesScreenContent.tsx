@@ -44,38 +44,19 @@ export const CoursesScreenContent: React.FC = () => {
   useFocusEffect(
     useCallback(() => {
       refetch();
-
-      const lastSync = account?.last_synced_at;
-      const isStale =
-        !lastSync ||
-        Date.now() - new Date(lastSync.endsWith("Z") ? lastSync : lastSync + "Z").getTime() > 60000;
-
-      if (isStale && !isSyncing) {
-        syncNow().catch(() => {});
-      }
-    }, [refetch, account?.last_synced_at, isSyncing, syncNow])
+    }, [refetch])
   );
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const lastSync = account?.last_synced_at;
-      const isStale =
-        !lastSync ||
-        Date.now() - new Date(lastSync.endsWith("Z") ? lastSync : lastSync + "Z").getTime() > 60000;
-      if (isStale && !isSyncing) {
-        syncNow().catch(() => {});
-      }
-    }, 20000);
-    return () => clearInterval(timer);
-  }, [account?.last_synced_at, isSyncing, syncNow]);
 
   const onRefresh = async () => {
     refetch();
-    if (account && !isSyncing) {
-      syncNow().then(() => {
-        refetch();
-      });
-    }
+  };
+
+  const handleManualSync = async () => {
+    if (!account || isSyncing) return;
+    try {
+      await syncNow();
+      refetch();
+    } catch {}
   };
 
   const previousAttendanceRef = React.useRef<Record<string, { present: number; absent: number; pct: number }> | null>(null);
@@ -110,8 +91,13 @@ export const CoursesScreenContent: React.FC = () => {
 
         if (known && Object.keys(known).length > 0) {
           for (const item of attendanceList) {
-            const key = item.course_code || item.course_title || item.id;
-            const title = item.course_title || item.course_code || "Course";
+            const key = item.course_code || item.course_title || item.course_name || item.id;
+            const title =
+              item.course_title ||
+              item.course_name ||
+              item.subject ||
+              item.course_code ||
+              "Bahria Course";
             const prev = known[key];
 
             if (prev) {
@@ -227,7 +213,7 @@ export const CoursesScreenContent: React.FC = () => {
         syncStep={syncProgressStep}
         lastSyncedAt={account?.last_synced_at}
         cloudMonitoringEnabled={account?.cloud_monitoring_enabled}
-        onSyncPress={onRefresh}
+        onSyncPress={handleManualSync}
       />
 
       {/* Filter Tabs */}

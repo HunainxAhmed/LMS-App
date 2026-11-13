@@ -177,17 +177,22 @@ export async function notifyAttendanceUpdate({
   try {
     const isPresent = status === "PRESENT";
     const isWarning = status === "WARNING";
+    const safeTitle =
+      courseTitle && courseTitle !== "undefined" && courseTitle.trim()
+        ? courseTitle.trim()
+        : "your course";
+
     const title = isWarning
-      ? `ATTENDANCE WARNING: ${courseTitle} ⚠️`
+      ? `ATTENDANCE WARNING: ${safeTitle} ⚠️`
       : isPresent
       ? `ATTENDANCE: Marked Present ✅`
       : `ATTENDANCE: Marked Absent ❌`;
 
     const body = isWarning
-      ? `Attendance dropped below threshold to ${percentage}% in ${courseTitle}. Zero safe misses remaining!`
+      ? `Attendance dropped below threshold to ${percentage}% in ${safeTitle}. Zero safe misses remaining!`
       : isPresent
-      ? `You were marked present in ${courseTitle}.\nAttendance: ${percentage}% (${presentHours || 0}/${totalHours || 0} hrs).`
-      : `You were marked absent in ${courseTitle}.\nAttendance: ${percentage}% (${presentHours || 0}/${totalHours || 0} hrs).`;
+      ? `You were marked present in ${safeTitle}.\nAttendance: ${percentage}% (${presentHours || 0}/${totalHours || 0} hrs).`
+      : `You were marked absent in ${safeTitle}.\nAttendance: ${percentage}% (${presentHours || 0}/${totalHours || 0} hrs).`;
 
     await Notifications.scheduleNotificationAsync({
       content: {

@@ -98,42 +98,21 @@ export const AssignmentsScreenContent: React.FC = () => {
     useCallback(() => {
       refetchCourses();
       refetch();
-
-      // If portal data was synced more than 60 seconds ago, quietly run sync in background
-      const lastSync = account?.last_synced_at;
-      const isStale =
-        !lastSync ||
-        Date.now() - new Date(lastSync.endsWith("Z") ? lastSync : lastSync + "Z").getTime() > 60000;
-
-      if (isStale && !isSyncing) {
-        syncNow().catch(() => {});
-      }
-    }, [refetchCourses, refetch, account?.last_synced_at, isSyncing, syncNow])
+    }, [refetchCourses, refetch])
   );
-
-  // Periodic check while user stays on this screen: sync if data is stale
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const lastSync = account?.last_synced_at;
-      const isStale =
-        !lastSync ||
-        Date.now() - new Date(lastSync.endsWith("Z") ? lastSync : lastSync + "Z").getTime() > 60000;
-      if (isStale && !isSyncing) {
-        syncNow().catch(() => {});
-      }
-    }, 20000);
-    return () => clearInterval(timer);
-  }, [account?.last_synced_at, isSyncing, syncNow]);
 
   const onRefresh = async () => {
     refetchCourses();
     refetch();
-    if (account && !isSyncing) {
-      syncNow().then(() => {
-        refetchCourses();
-        refetch();
-      });
-    }
+  };
+
+  const handleManualSync = async () => {
+    if (!account || isSyncing) return;
+    try {
+      await syncNow();
+      refetchCourses();
+      refetch();
+    } catch {}
   };
 
   const previousAssignmentIdsRef = React.useRef<Set<string> | null>(null);
@@ -469,7 +448,7 @@ export const AssignmentsScreenContent: React.FC = () => {
         syncStep={syncProgressStep}
         lastSyncedAt={account?.last_synced_at}
         cloudMonitoringEnabled={account?.cloud_monitoring_enabled}
-        onSyncPress={onRefresh}
+        onSyncPress={handleManualSync}
       />
 
       {/* Modern Course Selector Bar */}

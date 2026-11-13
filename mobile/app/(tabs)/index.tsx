@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useCallback, memo } from "react";
 import {
   View,
   StyleSheet,
@@ -16,16 +16,22 @@ import { LecturesScreenContent } from "../../components/screens/LecturesScreenCo
 import { DownloadsScreenContent } from "../../components/screens/DownloadsScreenContent";
 import { ResultsScreenContent } from "../../components/screens/ResultsScreenContent";
 
+// Memoize tab screen pages so they never re-render during swiping
+const MemoHome = memo(HomeScreenContent);
+const MemoCourses = memo(CoursesScreenContent);
+const MemoAssignments = memo(AssignmentsScreenContent);
+const MemoLectures = memo(LecturesScreenContent);
+const MemoDownloads = memo(DownloadsScreenContent);
+const MemoResults = memo(ResultsScreenContent);
+
 export default function MasterSwipeableTabs() {
   const { width: screenWidth } = useWindowDimensions();
   const horizontalPagerRef = useRef<any>(null);
-  const {
-    activeTabIndex,
-    pagerScrollEnabled,
-    targetTabIndex,
-    setActiveTabIndex,
-    clearTargetTab,
-  } = useTabStore();
+
+  // Select only what this container needs so tab index changes NEVER re-render the pager
+  const pagerScrollEnabled = useTabStore((s) => s.pagerScrollEnabled);
+  const targetTabIndex = useTabStore((s) => s.targetTabIndex);
+  const clearTargetTab = useTabStore((s) => s.clearTargetTab);
 
   // Programmatic tab navigation (via bottom bar taps, shortcuts, or deep links)
   useEffect(() => {
@@ -38,14 +44,21 @@ export default function MasterSwipeableTabs() {
     }
   }, [targetTabIndex, screenWidth, clearTargetTab]);
 
-  const handleMomentumScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (screenWidth <= 0) return;
-    const offsetX = e.nativeEvent.contentOffset.x;
-    const pageIndex = Math.round(offsetX / screenWidth);
-    if (pageIndex >= 0 && pageIndex <= 5 && pageIndex !== activeTabIndex) {
-      setActiveTabIndex(pageIndex);
-    }
-  };
+  // Real-time tab sync during swipe: as soon as finger crosses halfway, update bottom bar instantly!
+  const handleScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (screenWidth <= 0) return;
+      const offsetX = e.nativeEvent.contentOffset.x;
+      const pageIndex = Math.round(offsetX / screenWidth);
+      if (pageIndex >= 0 && pageIndex <= 5) {
+        const currentActive = useTabStore.getState().activeTabIndex;
+        if (pageIndex !== currentActive) {
+          useTabStore.getState().setActiveTabIndex(pageIndex);
+        }
+      }
+    },
+    [screenWidth]
+  );
 
   return (
     <View style={styles.root}>
@@ -58,39 +71,41 @@ export default function MasterSwipeableTabs() {
         nestedScrollEnabled={true}
         directionalLockEnabled={true}
         scrollEnabled={pagerScrollEnabled}
-        onMomentumScrollEnd={handleMomentumScrollEnd}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        onMomentumScrollEnd={handleScroll}
         decelerationRate="fast"
         style={styles.pager}
         contentContainerStyle={{ width: screenWidth * 6 }}
       >
         {/* Tab 0: Home Dashboard */}
         <View style={{ width: screenWidth, flex: 1 }}>
-          <HomeScreenContent />
+          <MemoHome />
         </View>
 
         {/* Tab 1: Attendance Tracker */}
         <View style={{ width: screenWidth, flex: 1 }}>
-          <CoursesScreenContent />
+          <MemoCourses />
         </View>
 
         {/* Tab 2: Assignments & Deadlines */}
         <View style={{ width: screenWidth, flex: 1 }}>
-          <AssignmentsScreenContent />
+          <MemoAssignments />
         </View>
 
         {/* Tab 3: Lecture Slides & Notes */}
         <View style={{ width: screenWidth, flex: 1 }}>
-          <LecturesScreenContent />
+          <MemoLectures />
         </View>
 
         {/* Tab 4: Downloads & Offline Storage */}
         <View style={{ width: screenWidth, flex: 1 }}>
-          <DownloadsScreenContent />
+          <MemoDownloads />
         </View>
 
         {/* Tab 5: GPA & Results */}
         <View style={{ width: screenWidth, flex: 1 }}>
-          <ResultsScreenContent />
+          <MemoResults />
         </View>
       </ScrollView>
 
