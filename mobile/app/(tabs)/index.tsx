@@ -7,7 +7,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from "react-native";
-import { useTabStore } from "../../stores/tabStore";
+import { useTabStore, registerPagerRef } from "../../stores/tabStore";
 import { ModernBottomTabBar } from "../../components/ModernBottomTabBar";
 import { HomeScreenContent } from "../../components/screens/HomeScreenContent";
 import { CoursesScreenContent } from "../../components/screens/CoursesScreenContent";
@@ -65,7 +65,10 @@ export default function MasterSwipeableTabs() {
     <View style={styles.root}>
       {/* 1:1 Interactive Instagram-Style Swipeable Pager */}
       <ScrollView
-        ref={horizontalPagerRef}
+        ref={(r) => {
+          horizontalPagerRef.current = r;
+          registerPagerRef(r);
+        }}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}

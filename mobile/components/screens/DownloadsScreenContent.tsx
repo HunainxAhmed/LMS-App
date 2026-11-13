@@ -16,7 +16,7 @@ import { useRouter } from "expo-router";
 import { colors } from "../../theme/colors";
 import { getDownloadDirectory } from "../../services/storage";
 import { SwipeableDownloadCard } from "../SwipeableDownloadCard";
-import { useTabStore } from "../../stores/tabStore";
+import { useTabStore, setPagerScrollEnabledDirect } from "../../stores/tabStore";
 import {
   DownloadedItem,
   syncAndGetDownloadedFiles,
@@ -62,9 +62,9 @@ export const DownloadsScreenContent: React.FC = () => {
   const [isMultiSelectMode, setIsMultiSelectMode] = useState<boolean>(false);
 
   useEffect(() => {
-    useTabStore.getState().setPagerScrollEnabled(!isMultiSelectMode);
+    setPagerScrollEnabledDirect(!isMultiSelectMode);
     return () => {
-      useTabStore.getState().setPagerScrollEnabled(true);
+      setPagerScrollEnabledDirect(true);
     };
   }, [isMultiSelectMode]);
 
@@ -98,15 +98,15 @@ export const DownloadsScreenContent: React.FC = () => {
     await loadDownloads();
   };
 
-  const handleOpenFile = async (item: DownloadedItem) => {
+  const handleOpenFile = useCallback(async (item: DownloadedItem) => {
     await openDownloadedFile(item);
-  };
+  }, []);
 
-  const handleShareFile = async (item: DownloadedItem) => {
+  const handleShareFile = useCallback(async (item: DownloadedItem) => {
     await shareDownloadedFile(item);
-  };
+  }, []);
 
-  const handleDeleteFile = (item: DownloadedItem) => {
+  const handleDeleteFile = useCallback((item: DownloadedItem) => {
     Alert.alert(
       "Delete File?",
       `Are you sure you want to remove "${item.fileName}" from your device?`,
@@ -127,10 +127,10 @@ export const DownloadsScreenContent: React.FC = () => {
         },
       ]
     );
-  };
+  }, []);
 
-  // Multi-select handlers
-  const handleToggleSelect = (id: string) => {
+  // Multi-select handlers with stable references
+  const handleToggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -140,16 +140,16 @@ export const DownloadsScreenContent: React.FC = () => {
       }
       return next;
     });
-  };
+  }, []);
 
-  const handleLongPress = (id: string) => {
+  const handleLongPress = useCallback((id: string) => {
     setIsMultiSelectMode(true);
     setSelectedIds((prev) => {
       const next = new Set(prev);
       next.add(id);
       return next;
     });
-  };
+  }, []);
 
   const handleSelectAll = (filteredCount: number, filteredItems: DownloadedItem[]) => {
     if (selectedIds.size === filteredCount) {
@@ -529,11 +529,11 @@ export const DownloadsScreenContent: React.FC = () => {
                 item={item}
                 isMultiSelectMode={isMultiSelectMode}
                 isSelected={selectedIds.has(item.id)}
-                onToggleSelect={() => handleToggleSelect(item.id)}
-                onLongPress={() => handleLongPress(item.id)}
-                onPress={() => handleOpenFile(item)}
-                onDelete={() => handleDeleteFile(item)}
-                onShare={() => handleShareFile(item)}
+                onToggleSelect={handleToggleSelect}
+                onLongPress={handleLongPress}
+                onPress={handleOpenFile}
+                onDelete={handleDeleteFile}
+                onShare={handleShareFile}
                 renderFileIcon={renderFileIcon}
               />
             ))}
@@ -545,8 +545,12 @@ export const DownloadsScreenContent: React.FC = () => {
       {isMultiSelectMode && (
         <View style={styles.batchActionBar}>
           <View style={styles.batchBarInfo}>
-            <Text style={styles.batchBarCount}>{selectedIds.size} Selected</Text>
-            <Text style={styles.batchBarSize}>{formatBytes(selectedTotalBytes)}</Text>
+            <Text style={styles.batchBarCount}>
+              {selectedIds.size} File{selectedIds.size === 1 ? "" : "s"} Selected
+            </Text>
+            <Text style={styles.batchBarSize}>
+              {formatBytes(selectedTotalBytes)} selected
+            </Text>
           </View>
           <View style={styles.batchBarButtons}>
             <TouchableOpacity
@@ -559,11 +563,15 @@ export const DownloadsScreenContent: React.FC = () => {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.batchDeleteBtn}
+              style={[
+                styles.batchDeleteBtn,
+                selectedIds.size === 0 && { opacity: 0.4 },
+              ]}
               onPress={handleDeleteSelected}
+              disabled={selectedIds.size === 0}
               activeOpacity={0.8}
             >
-              <Trash2 size={15} color="#ffffff" />
+              <Trash2 size={15} color="#ffffff" strokeWidth={2.5} />
               <Text style={styles.batchDeleteBtnText}>Delete ({selectedIds.size})</Text>
             </TouchableOpacity>
           </View>
@@ -1018,33 +1026,37 @@ const styles = StyleSheet.create({
   },
   batchActionBar: {
     position: "absolute",
-    bottom: 20,
+    bottom: Platform.OS === "ios" ? 24 : 16,
     left: 16,
     right: 16,
-    backgroundColor: "#0f172a",
-    borderRadius: 16,
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "rgba(4, 120, 87, 0.22)",
     paddingVertical: 12,
     paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    shadowColor: "#000",
+    shadowColor: "#047857",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 8,
+    shadowOpacity: 0.14,
+    shadowRadius: 16,
+    elevation: 10,
   },
   batchBarInfo: {
     flexDirection: "column",
   },
   batchBarCount: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "800",
+    color: colors.textPrimary,
+    letterSpacing: -0.2,
   },
   batchBarSize: {
     fontSize: 11,
-    color: "#94a3b8",
+    color: colors.primary,
+    fontWeight: "600",
     marginTop: 1,
   },
   batchBarButtons: {
@@ -1053,28 +1065,35 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   batchSelectAllBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: "#1e293b",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: "rgba(4, 120, 87, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(4, 120, 87, 0.2)",
   },
   batchSelectAllBtnText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#cbd5e1",
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.primary,
   },
   batchDeleteBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-    backgroundColor: "#dc2626",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: "#ef4444",
+    shadowColor: "#ef4444",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
   },
   batchDeleteBtnText: {
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#ffffff",
   },
 });

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, memo } from "react";
 import {
   View,
   Text,
@@ -9,22 +9,22 @@ import {
 } from "react-native";
 import { colors } from "../theme/colors";
 import { DownloadedItem, formatBytes } from "../services/downloadsRegistry";
-import { useTabStore } from "../stores/tabStore";
+import { setPagerScrollEnabledDirect } from "../stores/tabStore";
 import { Trash2, Share2, ExternalLink, Check } from "lucide-react-native";
 
 interface SwipeableDownloadCardProps {
   item: DownloadedItem;
   isMultiSelectMode: boolean;
   isSelected: boolean;
-  onToggleSelect: () => void;
-  onLongPress: () => void;
-  onPress: () => void;
-  onDelete: () => void;
-  onShare: () => void;
+  onToggleSelect: (id: string) => void;
+  onLongPress: (id: string) => void;
+  onPress: (item: DownloadedItem) => void;
+  onDelete: (item: DownloadedItem) => void;
+  onShare: (item: DownloadedItem) => void;
   renderFileIcon: (item: DownloadedItem) => React.ReactNode;
 }
 
-export const SwipeableDownloadCard: React.FC<SwipeableDownloadCardProps> = ({
+const SwipeableDownloadCardComponent: React.FC<SwipeableDownloadCardProps> = ({
   item,
   isMultiSelectMode,
   isSelected,
@@ -47,77 +47,74 @@ export const SwipeableDownloadCard: React.FC<SwipeableDownloadCardProps> = ({
       bounciness: 4,
     }).start();
     setIsOpen(false);
-    useTabStore.getState().setPagerScrollEnabled(true);
+    setPagerScrollEnabledDirect(true);
   };
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
+      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
         if (isMultiSelectMode) return false;
-        // Claim horizontal swipe if dragging left (or right to close)
+
         const isHorizontal =
-          Math.abs(gestureState.dx) > 8 &&
-          Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
-        if (!isHorizontal) {
-          // If vertical gesture, immediately restore pager scroll
-          useTabStore.getState().setPagerScrollEnabled(true);
-          return false;
-        }
+          Math.abs(gestureState.dx) > 10 &&
+          Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.2;
+
+        if (!isHorizontal) return false;
 
         // If closed, only respond to dragging left
         if (!isOpenRef.current && gestureState.dx < -6) return true;
         // If already open, respond to dragging in either direction
-        if (isOpenRef.current) return true;
+        if (isOpenRef.current && Math.abs(gestureState.dx) > 6) return true;
 
         return false;
       },
       onPanResponderGrant: () => {
-        // Temporarily lock parent horizontal tab pager while swiping card
-        useTabStore.getState().setPagerScrollEnabled(false);
+        // Direct native scroll disallow with 0 component re-renders
+        setPagerScrollEnabledDirect(false);
       },
       onPanResponderMove: (_, gestureState) => {
         if (isMultiSelectMode) return;
-        const base = isOpenRef.current ? -85 : 0;
+        const base = isOpenRef.current ? -90 : 0;
         const nextVal = base + gestureState.dx;
-        // Clamp between -200 and 0
-        if (nextVal <= 0) {
-          translateX.setValue(Math.max(-200, nextVal));
-        } else {
+        if (nextVal > 0) {
           translateX.setValue(0);
+        } else {
+          translateX.setValue(Math.max(-260, nextVal));
         }
       },
       onPanResponderRelease: (_, gestureState) => {
+        setPagerScrollEnabledDirect(true);
         if (isMultiSelectMode) return;
 
-        const effectiveDx = (isOpenRef.current ? -85 : 0) + gestureState.dx;
+        const effectiveDx = (isOpenRef.current ? -90 : 0) + gestureState.dx;
 
-        if (effectiveDx < -110 || gestureState.vx < -0.5) {
-          // Full swipe -> Slide all the way out and delete
+        if (effectiveDx < -140 || gestureState.vx < -0.5) {
+          // Full swipe to delete
           Animated.timing(translateX, {
-            toValue: -400,
+            toValue: -500,
             duration: 180,
             useNativeDriver: true,
           }).start(() => {
-            onDelete();
+            onDelete(item);
             translateX.setValue(0);
             setIsOpen(false);
-            useTabStore.getState().setPagerScrollEnabled(true);
           });
-        } else if (effectiveDx < -40) {
+        } else if (effectiveDx < -45) {
           // Snap open to reveal delete button
           Animated.spring(translateX, {
-            toValue: -85,
+            toValue: -90,
             useNativeDriver: true,
             bounciness: 4,
           }).start();
           setIsOpen(true);
         } else {
-          // Snap back closed
+          // Snap closed
           closeSwipe();
         }
       },
       onPanResponderTerminate: () => {
+        setPagerScrollEnabledDirect(true);
         closeSwipe();
       },
     })
@@ -129,9 +126,9 @@ export const SwipeableDownloadCard: React.FC<SwipeableDownloadCardProps> = ({
       return;
     }
     if (isMultiSelectMode) {
-      onToggleSelect();
+      onToggleSelect(item.id);
     } else {
-      onPress();
+      onPress(item);
     }
   };
 
@@ -165,31 +162,18 @@ export const SwipeableDownloadCard: React.FC<SwipeableDownloadCardProps> = ({
   };
 
   return (
-    <View
-      style={styles.container}
-      onTouchStart={() => {
-        if (!isMultiSelectMode) {
-          useTabStore.getState().setPagerScrollEnabled(false);
-        }
-      }}
-      onTouchEnd={() => {
-        useTabStore.getState().setPagerScrollEnabled(true);
-      }}
-      onTouchCancel={() => {
-        useTabStore.getState().setPagerScrollEnabled(true);
-      }}
-    >
+    <View style={styles.container}>
       {/* Hidden Swipe Action Underlay */}
       <View style={styles.underlay}>
         <TouchableOpacity
           style={styles.underlayDeleteBtn}
           onPress={() => {
             closeSwipe();
-            onDelete();
+            onDelete(item);
           }}
           activeOpacity={0.8}
         >
-          <Trash2 size={22} color="#ffffff" />
+          <Trash2 size={20} color="#ffffff" strokeWidth={2.4} />
           <Text style={styles.underlayText}>Delete</Text>
         </TouchableOpacity>
       </View>
@@ -206,8 +190,8 @@ export const SwipeableDownloadCard: React.FC<SwipeableDownloadCardProps> = ({
         <TouchableOpacity
           style={styles.cardTouchable}
           onPress={handleCardPress}
-          onLongPress={onLongPress}
-          delayLongPress={220}
+          onLongPress={() => onLongPress(item.id)}
+          delayLongPress={280}
           activeOpacity={0.85}
         >
           {/* Multi-Select Checkbox Circle */}
@@ -244,22 +228,22 @@ export const SwipeableDownloadCard: React.FC<SwipeableDownloadCardProps> = ({
             <View style={styles.cardActions}>
               <TouchableOpacity
                 style={styles.actionIconBtn}
-                onPress={onPress}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                onPress={() => onPress(item)}
+                hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
               >
                 <ExternalLink size={16} color={colors.primary} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.actionIconBtn}
-                onPress={onShare}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                onPress={() => onShare(item)}
+                hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
               >
                 <Share2 size={16} color="#64748b" />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.actionIconBtnDelete}
-                onPress={onDelete}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                onPress={() => onDelete(item)}
+                hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
               >
                 <Trash2 size={16} color="#ef4444" />
               </TouchableOpacity>
@@ -270,6 +254,18 @@ export const SwipeableDownloadCard: React.FC<SwipeableDownloadCardProps> = ({
     </View>
   );
 };
+
+export const SwipeableDownloadCard = memo(
+  SwipeableDownloadCardComponent,
+  (prev, next) => {
+    return (
+      prev.item.id === next.item.id &&
+      prev.item.fileSize === next.item.fileSize &&
+      prev.isMultiSelectMode === next.isMultiSelectMode &&
+      prev.isSelected === next.isSelected
+    );
+  }
+);
 
 const styles = StyleSheet.create({
   container: {
@@ -284,19 +280,19 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "#dc2626",
+    backgroundColor: "#ef4444",
     borderRadius: 18,
     flexDirection: "row",
     justifyContent: "flex-end",
     alignItems: "center",
   },
   underlayDeleteBtn: {
-    width: 85,
+    width: 90,
     height: "100%",
     justifyContent: "center",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#dc2626",
+    backgroundColor: "#ef4444",
   },
   underlayText: {
     fontSize: 11,
@@ -317,6 +313,7 @@ const styles = StyleSheet.create({
   },
   cardSelected: {
     borderColor: colors.primary,
+    borderWidth: 1.5,
     backgroundColor: "#f0fdf4",
   },
   cardTouchable: {
@@ -369,7 +366,7 @@ const styles = StyleSheet.create({
   },
   catBadgeText: {
     fontSize: 10,
-    fontWeight: "700",
+    fontWeight: "600",
     color: colors.textSecondary,
   },
   fileMetaDot: {
@@ -379,8 +376,8 @@ const styles = StyleSheet.create({
   },
   fileSizeText: {
     fontSize: 11,
+    color: colors.textSecondary,
     fontWeight: "600",
-    color: colors.textMuted,
   },
   fileDateText: {
     fontSize: 11,
@@ -389,7 +386,7 @@ const styles = StyleSheet.create({
   cardActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 4,
   },
   actionIconBtn: {
     width: 32,
@@ -398,13 +395,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSecondary,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
   },
   actionIconBtnDelete: {
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: "#fee2e2",
+    backgroundColor: "#fef2f2",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#fee2e2",
   },
 });
