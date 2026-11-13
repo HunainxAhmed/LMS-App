@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, memo } from "react";
+import React, { useRef, useCallback, memo } from "react";
 import {
   View,
   StyleSheet,
@@ -7,7 +7,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from "react-native";
-import { useTabStore, registerPagerRef } from "../../stores/tabStore";
+import { useTabStore, registerPagerRef, isProgrammaticTabScroll } from "../../stores/tabStore";
 import { ModernBottomTabBar } from "../../components/ModernBottomTabBar";
 import { HomeScreenContent } from "../../components/screens/HomeScreenContent";
 import { CoursesScreenContent } from "../../components/screens/CoursesScreenContent";
@@ -28,27 +28,15 @@ export default function MasterSwipeableTabs() {
   const { width: screenWidth } = useWindowDimensions();
   const horizontalPagerRef = useRef<any>(null);
 
-  // Select only what this container needs so tab index changes NEVER re-render the pager
+  // Select only what this container needs: zero re-renders on tab switching!
   const pagerScrollEnabled = useTabStore((s) => s.pagerScrollEnabled);
-  const targetTabIndex = useTabStore((s) => s.targetTabIndex);
-  const clearTargetTab = useTabStore((s) => s.clearTargetTab);
-
-  // Programmatic tab navigation (via bottom bar taps, shortcuts, or deep links)
-  // Uses instant jump (animated: false) so tapping a tab doesn't sluggishly slide across intermediate screens
-  useEffect(() => {
-    if (targetTabIndex !== null && horizontalPagerRef.current && screenWidth > 0) {
-      horizontalPagerRef.current.scrollTo({
-        x: targetTabIndex * screenWidth,
-        animated: false,
-      });
-      clearTargetTab();
-    }
-  }, [targetTabIndex, screenWidth, clearTargetTab]);
 
   // Real-time tab sync during swipe: as soon as finger crosses halfway, update bottom bar instantly!
   const handleScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (screenWidth <= 0) return;
+      // If we jumped programmatically via tap, ignore Android native bounce/stale scroll events
+      if (isProgrammaticTabScroll() || screenWidth <= 0) return;
+
       const offsetX = e.nativeEvent.contentOffset.x;
       const pageIndex = Math.round(offsetX / screenWidth);
       if (pageIndex >= 0 && pageIndex <= 5) {
