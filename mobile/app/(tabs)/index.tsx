@@ -34,11 +34,12 @@ export default function MasterSwipeableTabs() {
   const clearTargetTab = useTabStore((s) => s.clearTargetTab);
 
   // Programmatic tab navigation (via bottom bar taps, shortcuts, or deep links)
+  // Uses instant jump (animated: false) so tapping a tab doesn't sluggishly slide across intermediate screens
   useEffect(() => {
     if (targetTabIndex !== null && horizontalPagerRef.current && screenWidth > 0) {
       horizontalPagerRef.current.scrollTo({
         x: targetTabIndex * screenWidth,
-        animated: true,
+        animated: false,
       });
       clearTargetTab();
     }
