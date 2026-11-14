@@ -37,9 +37,9 @@ CURRENT_CONFIG = {
         "Smooth tab navigation and enhanced Bahria CMS portal sync"
     ],
     "download_url": "/api/v1/app/download-apk",
-    "direct_apk_url": "https://expo.dev/artifacts/eas/rGGbbS4VgAw7uEOl_93JwS_U7ozDhjRv8XlxMngwYA8.apk",
+    "direct_apk_url": "https://expo.dev/artifacts/eas/v28oNLR7K5--8GPZdy9KJnCmwe_QVVXPEE9GxFc-NmE.apk",
     "file_size_bytes": 36700000,
-    "published_at": "2026-11-14T09:00:00Z"
+    "published_at": "2026-11-14T09:28:00Z"
 }
 
 def compare_versions(v1: str, v2: str) -> int:
