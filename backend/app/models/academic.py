@@ -224,3 +224,17 @@ class AcademicAnnouncement(Base):
     created_at = Column(DateTime, default=utc_now, nullable=False)
 
     account = relationship("UniversityAccount", back_populates="announcements")
+
+class CommunityService(Base):
+    __tablename__ = "community_services"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    account_id = Column(String(36), ForeignKey("university_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    semester = Column(String(32), default="")
+    organization = Column(String(255), nullable=False)
+    job_title = Column(String(128), default="N/A")
+    completed_date = Column(String(64), default="")
+    hours = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+
+    account = relationship("UniversityAccount", backref="community_services")

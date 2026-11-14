@@ -164,6 +164,17 @@ class FullAcademicResultSchema(BaseModel):
     academic_standing: str = "Good Standing"
     semesters: List[SemesterResultSchema]
 
+class CommunityServiceSchema(BaseModel):
+    id: Optional[str] = None
+    semester: str = ""
+    organization: str
+    job_title: str = "N/A"
+    completed_date: str = ""
+    hours: float = 0.0
+
+    class Config:
+        from_attributes = True
+
 class DashboardOverviewSchema(BaseModel):
     full_name: str
     enrollment: str
@@ -172,6 +183,8 @@ class DashboardOverviewSchema(BaseModel):
     cgpa: float = 0.0
     sgpa: float = 0.0
     total_credit_hours: float = 0.0
+    total_csp_hours: float = 0.0
+    csp_required_hours: float = 40.0
     academic_standing: str = "Enrolled"
     pending_assignments_count: int
     due_24h_count: int
@@ -185,6 +198,7 @@ class DashboardOverviewSchema(BaseModel):
     upcoming_assignments: List[AssignmentSchema]
     missed_assignments: List[AssignmentSchema] = []
     attendance_cards: List[AttendanceRecordSchema]
+    community_services: List[CommunityServiceSchema] = []
     recent_activity: List[ActivityItem]
     last_synced_at: Optional[datetime] = None
     sync_status: str = "CONNECTED"

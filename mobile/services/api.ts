@@ -251,6 +251,19 @@ export const api = {
 
   getGrades: () => request<any[]>("/grades"),
   getResults: () => request<any>("/results"),
+  getCommunityServices: () =>
+    request<{
+      total_hours: number;
+      required_hours: number;
+      is_fulfilled: boolean;
+      records: Array<{
+        semester: string;
+        organization: string;
+        job_title?: string;
+        completed_date: string;
+        hours: number;
+      }>;
+    }>("/academic/community-services"),
 
   getAnnouncements: () => request<any[]>("/announcements"),
 

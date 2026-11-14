@@ -231,6 +231,7 @@ class ScrapingEngine:
             "attendance": [],
             "assignments": [],
             "materials": [],
+            "community_services": {},
             "cookies": self.cookies,
         }
 
@@ -303,6 +304,17 @@ class ScrapingEngine:
                     logger.info(f"Scraped official provisional results: {results['exam_results']['completed_semesters_count']} completed semesters, {results['exam_results']['total_credits']} credits.")
             except Exception as e:
                 logger.warning(f"Exam results scraping error: {e}")
+
+            # Step 2c: Scrape Community Services (CSP Hours) from CMS
+            try:
+                from app.scrapers.cms.community_service import parse_cms_community_services
+                csp_url = f"{self.cms_base}/Sys/Student/Exams/CommunityServices.aspx"
+                csp_resp = await client.get(csp_url, timeout=15.0)
+                if csp_resp.status_code == 200 and "qualityassurance" not in str(csp_resp.url).lower():
+                    results["community_services"] = parse_cms_community_services(csp_resp.text)
+                    logger.info(f"Scraped official community services: {results['community_services'].get('total_hours', 0.0)} total CSP hours.")
+            except Exception as e:
+                logger.warning(f"Community Services scraping error: {e}")
 
             # Step 3: Fetch LMS Courses from Assignments.php dropdown
             if on_progress:

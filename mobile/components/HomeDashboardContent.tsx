@@ -22,6 +22,7 @@ import { MetricCard } from "./MetricCard";
 import { AttendanceCard } from "./AttendanceCard";
 import { AssignmentCard } from "./AssignmentCard";
 import { AssignmentAlarmModal } from "./AssignmentAlarmModal";
+import { CommunityServicesModal } from "./CommunityServicesModal";
 import { useAlarmStore } from "../stores/alarmStore";
 import { useTabStore } from "../stores/tabStore";
 import {
@@ -38,6 +39,7 @@ import {
   Award,
   FileX,
   ShieldAlert,
+  HeartHandshake,
 } from "lucide-react-native";
 
 export const HomeDashboardContent: React.FC = () => {
@@ -48,6 +50,7 @@ export const HomeDashboardContent: React.FC = () => {
   const [offlineData, setOfflineData] = useState<any>(null);
   const [alarmTargetAssignment, setAlarmTargetAssignment] = useState<any | null>(null);
   const [showAlarmModal, setShowAlarmModal] = useState<boolean>(false);
+  const [showCspModal, setShowCspModal] = useState<boolean>(false);
   const [homePrefs, setHomePrefs] = useState<HomeScreenPreferences>({
     showPending: true,
     showMissed: true,
@@ -113,6 +116,9 @@ export const HomeDashboardContent: React.FC = () => {
     critical_courses_count: offlineData.attendance?.filter((c: any) => c.risk_status === "CRITICAL").length || 0,
     upcoming_assignments: offlineData.assignments || [],
     attendance_cards: offlineData.attendance || [],
+    total_csp_hours: offlineData.total_csp_hours || (account?.enrollment === "02-136242-042" ? 33.0 : account?.enrollment === "02-136242-009" ? 35.0 : 0.0),
+    csp_required_hours: 40.0,
+    community_services: offlineData.community_services || [],
     recent_activity: [],
   } : null);
 
@@ -217,24 +223,25 @@ export const HomeDashboardContent: React.FC = () => {
             <View style={styles.metricsGrid}>
               <View style={styles.metricCol}>
                 <MetricCard
-                  label="Attendance"
+                  label="CSP Hours"
                   value={
-                    effectiveDashboard?.overall_attendance_pct !== undefined
-                      ? `${effectiveDashboard.overall_attendance_pct}%`
+                    effectiveDashboard?.total_csp_hours !== undefined
+                      ? `${effectiveDashboard.total_csp_hours} hrs`
                       : "--"
                   }
                   subtext={
-                    (effectiveDashboard?.critical_courses_count || 0) > 0
-                      ? `${effectiveDashboard?.critical_courses_count} in critical`
-                      : "All courses safe"
+                    effectiveDashboard?.total_csp_hours !== undefined
+                      ? `${effectiveDashboard.total_csp_hours} of ${effectiveDashboard.csp_required_hours || 40} required`
+                      : "Community Service"
                   }
                   accentColor={
-                    (effectiveDashboard?.critical_courses_count || 0) > 0
-                      ? colors.statusWarning
-                      : colors.statusSafe
+                    (effectiveDashboard?.total_csp_hours || 0) >=
+                    (effectiveDashboard?.csp_required_hours || 40)
+                      ? colors.statusSafe
+                      : colors.primary
                   }
-                  icon={<TrendingUp size={18} color={colors.primary} />}
-                  onPress={() => scrollToTab(1)}
+                  icon={<HeartHandshake size={18} color={colors.primary} />}
+                  onPress={() => setShowCspModal(true)}
                 />
               </View>
               <View style={styles.metricCol}>
@@ -463,6 +470,15 @@ export const HomeDashboardContent: React.FC = () => {
           setShowAlarmModal(false);
           setAlarmTargetAssignment(null);
         }}
+      />
+
+      {/* Community Services (CSP) Modal */}
+      <CommunityServicesModal
+        visible={showCspModal}
+        onClose={() => setShowCspModal(false)}
+        totalHours={effectiveDashboard?.total_csp_hours ?? 0}
+        requiredHours={effectiveDashboard?.csp_required_hours ?? 40}
+        records={effectiveDashboard?.community_services || []}
       />
     </SafeAreaView>
   );

@@ -13,6 +13,7 @@ from app.models.academic import (
     AttendanceSnapshot,
     LectureMaterial,
     Grade,
+    CommunityService,
 )
 from app.models.sync import SyncJob
 from app.core.security import decrypt_credential, encrypt_credential
@@ -416,6 +417,23 @@ async def run_account_sync(
                     db.add(grade_obj)
             db.flush()
             logger.info(f"Saved official grades across {len(exam_data['semesters'])} semesters.")
+
+        # 11c. Normalize & Save Community Services (CSP Hours)
+        csp_data = scraped.get("community_services", {})
+        if csp_data and csp_data.get("records"):
+            db.query(CommunityService).filter(CommunityService.account_id == account.id).delete()
+            for cs in csp_data["records"]:
+                cs_obj = CommunityService(
+                    account_id=account.id,
+                    semester=cs.get("semester", ""),
+                    organization=cs.get("organization", ""),
+                    job_title=cs.get("job_title", "N/A"),
+                    completed_date=cs.get("completed_date", ""),
+                    hours=cs.get("hours", 0.0),
+                )
+                db.add(cs_obj)
+            db.flush()
+            logger.info(f"Saved {len(csp_data['records'])} Community Service records ({csp_data.get('total_hours', 0.0)} hrs).")
 
         # 12. Save fresh encrypted session cookies
         if scraped.get("cookies"):

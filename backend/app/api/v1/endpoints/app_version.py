@@ -27,18 +27,19 @@ class UpdateVersionPayload(BaseModel):
 
 # Default configured production release info
 CURRENT_CONFIG = {
-    "latest_version": "1.0.1",
+    "latest_version": "1.0.2",
     "is_mandatory": False,
     "release_notes": [
+        "Community Service Program (CSP) hours tracking directly on Home tab",
+        "Official Bahria University 40-hour graduation clearance progress modal",
+        "Itemized volunteer activities, drives, dates, and certified credit hours",
         "Dynamic Provisional Results tailored to your student account & CGPA",
-        "Enhanced Bahria University portal sync for all students & campuses",
-        "Auto-resolution for survey redirects & seamless coursework loading",
-        "Instant smooth tab switching & refined download management"
+        "Smooth tab navigation and enhanced Bahria CMS portal sync"
     ],
     "download_url": "/api/v1/app/download-apk",
     "direct_apk_url": "https://expo.dev/artifacts/eas/rGGbbS4VgAw7uEOl_93JwS_U7ozDhjRv8XlxMngwYA8.apk",
     "file_size_bytes": 36700000,
-    "published_at": "2026-11-14T08:00:00Z"
+    "published_at": "2026-11-14T09:00:00Z"
 }
 
 def compare_versions(v1: str, v2: str) -> int:
