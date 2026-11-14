@@ -2,6 +2,7 @@ import re
 import json
 import asyncio
 import logging
+import urllib.parse
 from typing import Dict, Any, List, Optional, Tuple
 import httpx
 from bs4 import BeautifulSoup
@@ -143,13 +144,35 @@ class ScrapingEngine:
                     lms_resp = await client.get(
                         transit_url,
                         headers={**COMMON_HEADERS, "Referer": str(post_resp.url)},
-                        timeout=12.0,
+                        timeout=18.0,
                         follow_redirects=True
                     )
                     # If GoToLMS redirected to QA survey, transition was blocked
                     if any(k in str(lms_resp.url).lower() for k in ("qualityassurance", "survey")):
                         logger.info("GoToLMS redirected to Quality Assurance Surveys. Delegating to Playwright.")
                         return False, {}, {}
+
+                    # If GoToLMS returned an HTML form with auto-submit (document.form1.submit())
+                    if lms_resp.status_code == 200 and "<form" in lms_resp.text.lower():
+                        soup_lms = BeautifulSoup(lms_resp.text, "html.parser")
+                        form = soup_lms.find("form")
+                        if form and form.get("action"):
+                            action = form.get("action")
+                            if not action.startswith("http"):
+                                action = urllib.parse.urljoin(str(lms_resp.url), action)
+                            post_data = {
+                                inp.get("name"): inp.get("value", "")
+                                for inp in form.find_all("input")
+                                if inp.get("name")
+                            }
+                            post_lms = await client.post(
+                                action,
+                                data=post_data,
+                                headers={**COMMON_HEADERS, "Referer": str(lms_resp.url)},
+                                timeout=18.0,
+                                follow_redirects=True
+                            )
+                            merged_cookies.update(dict(post_lms.cookies))
 
                     merged_cookies.update(dict(client.cookies))
                     merged_cookies.update(dict(lms_resp.cookies))
@@ -181,13 +204,12 @@ class ScrapingEngine:
             logger.info("Attempting direct HTTP login and LMS transition...")
             http_success, new_cookies, extracted_info = await self._try_http_login(client)
             if http_success:
-                if not need_lms or "PHPSESSID" in new_cookies:
-                    self.cookies = new_cookies
-                    for k, v in extracted_info.items():
-                        if v:
-                            self.student_info[k] = v
-                    logger.info(f"Direct HTTP login succeeded with cookies: {list(new_cookies.keys())}, student: {self.student_info.get('full_name')}")
-                    return True, "", self.student_info
+                self.cookies = new_cookies
+                for k, v in extracted_info.items():
+                    if v:
+                        self.student_info[k] = v
+                logger.info(f"Direct HTTP login succeeded with cookies: {list(new_cookies.keys())}, student: {self.student_info.get('full_name')}")
+                return True, "", self.student_info
 
         # If LMS access is needed or direct HTTP CMS login failed (surveys, dynamic ASP.NET wall), launch Playwright automation
         logger.info("Launching fast Playwright browser automation for authentication and LMS transition...")
@@ -253,7 +275,11 @@ class ScrapingEngine:
                     await on_progress("Updating attendance...")
                 try:
                     att_url = f"{self.cms_base}/Sys/Student/ClassAttendance/StudentWiseAttendance.aspx"
-                    att_resp = await client.get(att_url)
+                    att_resp = await client.get(
+                        att_url,
+                        headers={**COMMON_HEADERS, "Referer": f"{self.cms_base}/Sys/Student/Dashboard.aspx"},
+                        timeout=18.0
+                    )
                     if att_resp.status_code == 200 and "qualityassurancesurveys.aspx" not in str(att_resp.url).lower():
                         att_records = parse_attendance_html(att_resp.text, self.attendance_threshold)
                         results["attendance"] = att_records
@@ -272,7 +298,11 @@ class ScrapingEngine:
                     if not detail_url:
                         return
                     try:
-                        resp = await client.get(detail_url, timeout=15.0)
+                        resp = await client.get(
+                            detail_url,
+                            headers={**COMMON_HEADERS, "Referer": f"{self.cms_base}/Sys/Student/ClassAttendance/StudentWiseAttendance.aspx"},
+                            timeout=15.0
+                        )
                         if resp.status_code == 200:
                             sessions = parse_attendance_summary_html(resp.text)
                             rec["sessions"] = sessions
@@ -285,7 +315,11 @@ class ScrapingEngine:
             # Step 2: Scrape Student Profile from CMS if not already extracted
             try:
                 dash_url = f"{self.cms_base}/Sys/Student/Dashboard.aspx"
-                dash_resp = await client.get(dash_url)
+                dash_resp = await client.get(
+                    dash_url,
+                    headers={**COMMON_HEADERS, "Referer": f"{self.cms_base}/Sys/Student/Dashboard.aspx"},
+                    timeout=15.0
+                )
                 if dash_resp.status_code == 200:
                     profile = parse_cms_profile(dash_resp.text)
                     for k, v in profile.items():
@@ -298,7 +332,11 @@ class ScrapingEngine:
             try:
                 from app.scrapers.cms.results import parse_cms_exam_results
                 exam_url = f"{self.cms_base}/Sys/Student/Exams/ExamResult.aspx"
-                exam_resp = await client.get(exam_url, timeout=15.0)
+                exam_resp = await client.get(
+                    exam_url,
+                    headers={**COMMON_HEADERS, "Referer": f"{self.cms_base}/Sys/Student/Dashboard.aspx"},
+                    timeout=18.0
+                )
                 if exam_resp.status_code == 200:
                     results["exam_results"] = parse_cms_exam_results(exam_resp.text)
                     logger.info(f"Scraped official provisional results: {results['exam_results']['completed_semesters_count']} completed semesters, {results['exam_results']['total_credits']} credits.")
@@ -309,7 +347,11 @@ class ScrapingEngine:
             try:
                 from app.scrapers.cms.community_service import parse_cms_community_services
                 csp_url = f"{self.cms_base}/Sys/Student/Exams/CommunityServices.aspx"
-                csp_resp = await client.get(csp_url, timeout=15.0)
+                csp_resp = await client.get(
+                    csp_url,
+                    headers={**COMMON_HEADERS, "Referer": f"{self.cms_base}/Sys/Student/Dashboard.aspx"},
+                    timeout=18.0
+                )
                 if csp_resp.status_code == 200 and "qualityassurance" not in str(csp_resp.url).lower():
                     results["community_services"] = parse_cms_community_services(csp_resp.text)
                     logger.info(f"Scraped official community services: {results['community_services'].get('total_hours', 0.0)} total CSP hours.")
@@ -322,7 +364,11 @@ class ScrapingEngine:
             courses_list: List[Dict[str, str]] = []
             try:
                 assign_page_url = f"{self.lms_base}/Student/Assignments.php"
-                assign_page_resp = await client.get(assign_page_url)
+                assign_page_resp = await client.get(
+                    assign_page_url,
+                    headers={**COMMON_HEADERS, "Referer": f"{self.lms_base}/Student/Dashboard.php"},
+                    timeout=18.0
+                )
                 if assign_page_resp.status_code == 200:
                     soup = BeautifulSoup(assign_page_resp.text, "html.parser")
                     course_dropdown = (

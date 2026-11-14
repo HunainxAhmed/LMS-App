@@ -626,121 +626,15 @@ def get_academic_results(
             semesters=semester_list,
         )
 
-    # For any regular student account with no grades yet, return clean empty result
-    if account.enrollment != "02-136242-009":
-        return FullAcademicResultSchema(
-            cgpa=0.0,
-            current_sgpa=0.0,
-            total_credit_hours=0.0,
-            completed_semesters_count=0,
-            degree_progress_pct=0.0,
-            academic_standing="Enrolled",
-            semesters=[],
-        )
-
-    # Isolated fallback ONLY for student Hunain Ahmed (02-136242-009) when grades not populated
-    all_semesters = [
-        SemesterResultSchema(
-            semester_name="Fall-2024",
-            gpa=3.67,
-            cgpa=3.67,
-            credit_hours=17.0,
-            is_in_progress=False,
-            courses=[
-                GradeSchema(id="fa24-1", course_code="GSL-114", course_title="Applied Physics Lab", grade="A", grade_points=4.0, credit_hours=1.0, semester="Fall-2024"),
-                GradeSchema(id="fa24-2", course_code="GSC-114", course_title="Applied Physics", grade="B+", grade_points=3.33, credit_hours=2.0, semester="Fall-2024"),
-                GradeSchema(id="fa24-3", course_code="CSC-113", course_title="Computer Programming", grade="A-", grade_points=3.67, credit_hours=3.0, semester="Fall-2024"),
-                GradeSchema(id="fa24-4", course_code="CSL-113", course_title="Computer Programming Lab", grade="B+", grade_points=3.33, credit_hours=1.0, semester="Fall-2024"),
-                GradeSchema(id="fa24-5", course_code="GSC-221", course_title="Discrete Mathematics", grade="A", grade_points=4.0, credit_hours=3.0, semester="Fall-2024"),
-                GradeSchema(id="fa24-6", course_code="CSC-114", course_title="Introduction to Information & Communication Technology", grade="B+", grade_points=3.33, credit_hours=2.0, semester="Fall-2024"),
-                GradeSchema(id="fa24-7", course_code="CSL-114", course_title="Introduction to Information & Communication Technology Lab", grade="A", grade_points=4.0, credit_hours=1.0, semester="Fall-2024"),
-                GradeSchema(id="fa24-8", course_code="ISL-101", course_title="Islamic Studies", grade="A", grade_points=4.0, credit_hours=2.0, semester="Fall-2024"),
-                GradeSchema(id="fa24-9", course_code="CSC-308", course_title="Professional Practices and Ethics", grade="B+", grade_points=3.33, credit_hours=2.0, semester="Fall-2024"),
-                GradeSchema(id="fa24-10", course_code="ISL-107", course_title="Tajweed", grade="A", grade_points=4.0, credit_hours=0.0, semester="Fall-2024"),
-            ]
-        ),
-        SemesterResultSchema(
-            semester_name="Spring-2025",
-            gpa=3.69,
-            cgpa=3.68,
-            credit_hours=18.0,
-            is_in_progress=False,
-            courses=[
-                GradeSchema(id="sp25-1", course_code="GSC-110", course_title="Applied Calculus & Analytical Geometry", grade="B+", grade_points=3.33, credit_hours=3.0, semester="Spring-2025"),
-                GradeSchema(id="sp25-2", course_code="CEN-122", course_title="Digital Design", grade="A-", grade_points=3.67, credit_hours=2.0, semester="Spring-2025"),
-                GradeSchema(id="sp25-3", course_code="ENG-101", course_title="Functional English", grade="B+", grade_points=3.33, credit_hours=3.0, semester="Spring-2025"),
-                GradeSchema(id="sp25-4", course_code="CSC-210", course_title="Object Oriented Programming", grade="A-", grade_points=3.67, credit_hours=3.0, semester="Spring-2025"),
-                GradeSchema(id="sp25-5", course_code="CSL-210", course_title="Object Oriented Programming Lab", grade="A", grade_points=4.0, credit_hours=1.0, semester="Spring-2025"),
-                GradeSchema(id="sp25-6", course_code="PAK-103", course_title="Pakistan Studies & Global Perspective", grade="A", grade_points=4.0, credit_hours=2.0, semester="Spring-2025"),
-                GradeSchema(id="sp25-7", course_code="GSC-122", course_title="Probability & Statistics", grade="A", grade_points=4.0, credit_hours=3.0, semester="Spring-2025"),
-                GradeSchema(id="sp25-8", course_code="ISL 108", course_title="Understanding Quran-I", grade="A", grade_points=4.0, credit_hours=0.0, semester="Spring-2025"),
-                GradeSchema(id="sp25-9", course_code="CEL-122", course_title="Digital Design Lab", grade="A", grade_points=4.0, credit_hours=1.0, semester="Spring-2025"),
-            ]
-        ),
-        SemesterResultSchema(
-            semester_name="Fall-2025",
-            gpa=3.61,
-            cgpa=3.65,
-            credit_hours=17.0,
-            is_in_progress=False,
-            courses=[
-                GradeSchema(id="fa25-1", course_code="CSL 221", course_title="Data Structures and Algorithms Lab", grade="A-", grade_points=3.67, credit_hours=1.0, semester="Fall-2025"),
-                GradeSchema(id="fa25-2", course_code="CSC 221", course_title="Data Structures and Algorithms", grade="B", grade_points=3.0, credit_hours=3.0, semester="Fall-2025"),
-                GradeSchema(id="fa25-3", course_code="CEL 323", course_title="Computer Organization & Assembly Language Lab", grade="A", grade_points=4.0, credit_hours=1.0, semester="Fall-2025"),
-                GradeSchema(id="fa25-4", course_code="CEN 323", course_title="Computer Organization & Assembly Language", grade="A-", grade_points=3.67, credit_hours=2.0, semester="Fall-2025"),
-                GradeSchema(id="fa25-5", course_code="ISL 109", course_title="Understanding Quran-II", grade="B+", grade_points=3.33, credit_hours=0.0, semester="Fall-2025"),
-                GradeSchema(id="fa25-6", course_code="HSS 219", course_title="Civic and Community Engagement", grade="A-", grade_points=3.67, credit_hours=2.0, semester="Fall-2025"),
-                GradeSchema(id="fa25-7", course_code="ENG 134", course_title="Communication Skills", grade="A", grade_points=4.0, credit_hours=2.0, semester="Fall-2025"),
-                GradeSchema(id="fa25-8", course_code="GSC 121", course_title="Linear Algebra", grade="B+", grade_points=3.33, credit_hours=3.0, semester="Fall-2025"),
-                GradeSchema(id="fa25-9", course_code="AIL 202", course_title="Programming for AI Lab", grade="A", grade_points=4.0, credit_hours=1.0, semester="Fall-2025"),
-                GradeSchema(id="fa25-10", course_code="AIC 202", course_title="Programming for AI", grade="A", grade_points=4.0, credit_hours=2.0, semester="Fall-2025"),
-            ]
-        ),
-        SemesterResultSchema(
-            semester_name="Spring-2026",
-            gpa=3.63,
-            cgpa=3.65,
-            credit_hours=17.0,
-            is_in_progress=False,
-            courses=[
-                GradeSchema(id="sp26-1", course_code="ISL 110", course_title="Understanding Quran III", grade="A", grade_points=4.0, credit_hours=0.0, semester="Spring-2026"),
-                GradeSchema(id="sp26-2", course_code="HSS 423", course_title="Entrepreneurship", grade="B+", grade_points=3.33, credit_hours=2.0, semester="Spring-2026"),
-                GradeSchema(id="sp26-3", course_code="CSL 220", course_title="Database Management Systems Lab", grade="A", grade_points=4.0, credit_hours=1.0, semester="Spring-2026"),
-                GradeSchema(id="sp26-4", course_code="CSC 220", course_title="Database Management Systems", grade="A-", grade_points=3.67, credit_hours=3.0, semester="Spring-2026"),
-                GradeSchema(id="sp26-5", course_code="AIL 201", course_title="Artificial Intelligence Lab", grade="A", grade_points=4.0, credit_hours=1.0, semester="Spring-2026"),
-                GradeSchema(id="sp26-6", course_code="AIC 201", course_title="Artificial Intelligence", grade="B+", grade_points=3.33, credit_hours=3.0, semester="Spring-2026"),
-                GradeSchema(id="sp26-7", course_code="CEN 222", course_title="Data Communication and Networking", grade="A-", grade_points=3.67, credit_hours=3.0, semester="Spring-2026"),
-                GradeSchema(id="sp26-8", course_code="BES 103", course_title="Critical Thinking", grade="A-", grade_points=3.67, credit_hours=3.0, semester="Spring-2026"),
-                GradeSchema(id="sp26-9", course_code="CEL 222", course_title="Data Communication and Networking Lab", grade="A", grade_points=4.0, credit_hours=1.0, semester="Spring-2026"),
-            ]
-        ),
-        SemesterResultSchema(
-            semester_name="Fall-2026",
-            gpa=0.0,
-            cgpa=3.65,
-            credit_hours=18.0,
-            is_in_progress=True,
-            courses=[
-                GradeSchema(id="fa26-1", course_code="AIC 203", course_title="Knowledge Representation and Reasoning", grade="N/A", grade_points=0.0, credit_hours=3.0, semester="Fall-2026"),
-                GradeSchema(id="fa26-2", course_code="AIC 301", course_title="Machine Learning", grade="N/A", grade_points=0.0, credit_hours=2.0, semester="Fall-2026"),
-                GradeSchema(id="fa26-3", course_code="AIL 301", course_title="Machine Learning Lab", grade="N/A", grade_points=0.0, credit_hours=1.0, semester="Fall-2026"),
-                GradeSchema(id="fa26-4", course_code="GSC 211", course_title="Multivariable Calculus", grade="N/A", grade_points=0.0, credit_hours=3.0, semester="Fall-2026"),
-                GradeSchema(id="fa26-5", course_code="CSC 321", course_title="Design and Analysis of Algorithm", grade="N/A", grade_points=0.0, credit_hours=3.0, semester="Fall-2026"),
-                GradeSchema(id="fa26-6", course_code="AIC 308", course_title="Agent-Based Modeling", grade="N/A", grade_points=0.0, credit_hours=3.0, semester="Fall-2026"),
-                GradeSchema(id="fa26-7", course_code="ITC 412", course_title="Introduction to Cyber Security", grade="N/A", grade_points=0.0, credit_hours=2.0, semester="Fall-2026"),
-                GradeSchema(id="fa26-8", course_code="ITL 412", course_title="Introduction to Cyber Security Lab", grade="N/A", grade_points=0.0, credit_hours=1.0, semester="Fall-2026"),
-            ]
-        ),
-    ]
-
+    # If no grades have been synced yet, return clean empty result
     return FullAcademicResultSchema(
-        cgpa=3.65,
-        current_sgpa=3.63,
-        total_credit_hours=69.0,
-        completed_semesters_count=4,
-        degree_progress_pct=53.1,
-        academic_standing="Dean's Honor Roll",
-        semesters=all_semesters,
+        cgpa=0.0,
+        current_sgpa=0.0,
+        total_credit_hours=0.0,
+        completed_semesters_count=0,
+        degree_progress_pct=0.0,
+        academic_standing="Enrolled",
+        semesters=[],
     )
 
 
@@ -777,29 +671,16 @@ def get_community_services(
     if csp_records:
         total_csp = sum(c.hours for c in csp_records)
         items = [CommunityServiceSchema.from_orm(c) for c in csp_records]
-    elif account.enrollment == "02-136242-042":
-        total_csp = 33.0
-        items = [
-            CommunityServiceSchema(semester="Fall-2024", organization="Blood Donation Drive at BUKC", job_title="N/A", completed_date="Thursday, 3 October 2024", hours=5.0),
-            CommunityServiceSchema(semester="Spring-2025", organization="Participated in Raashan Drive in Slum areas of Khi.", job_title="N/A", completed_date="Monday, 17 February 2025", hours=6.0),
-            CommunityServiceSchema(semester="Spring-2025", organization="Participated at Thrift Bazaar", job_title="N/A", completed_date="Wednesday, 19 February 2025", hours=5.0),
-            CommunityServiceSchema(semester="Fall-2025", organization="Participated in Pink Ribbon Hospital Donation 2025", job_title="N/A", completed_date="Wednesday, 15 October 2025", hours=3.0),
-            CommunityServiceSchema(semester="Fall-2025", organization="Blood Donation Drive (AMTF)", job_title="N/A", completed_date="Thursday, 27 November 2025", hours=5.0),
-            CommunityServiceSchema(semester="Spring-2026", organization="Participated in a seminar on \"Eye Health Awareness\" by FIO Hospital", job_title="N/A", completed_date="Tuesday, 28 April 2026", hours=2.0),
-            CommunityServiceSchema(semester="Summer-2026", organization="Participated in donation to Dar-ul-Sukun", job_title="N/A", completed_date="Wednesday, 29 July 2026", hours=3.0),
-            CommunityServiceSchema(semester="Summer-2026", organization="Participated in observance of Youm-e-Istehsaal at BUKC", job_title="N/A", completed_date="Thursday, 6 August 2026", hours=5.0),
-        ]
-    elif account.enrollment == "02-136242-009":
-        total_csp = 35.0
-        items = [
-            CommunityServiceSchema(semester="Fall-2024", organization="Blood Donation Drive at BUKC", job_title="N/A", completed_date="Thursday, 3 October 2024", hours=5.0),
-            CommunityServiceSchema(semester="Spring-2025", organization="Campus Cleanliness & Plantation Campaign", job_title="N/A", completed_date="Wednesday, 12 March 2025", hours=10.0),
-            CommunityServiceSchema(semester="Fall-2025", organization="Pink Ribbon Breast Cancer Awareness Drive", job_title="N/A", completed_date="Wednesday, 15 October 2025", hours=5.0),
-            CommunityServiceSchema(semester="Spring-2026", organization="Flood Relief & Ration Distribution Support", job_title="N/A", completed_date="Tuesday, 21 April 2026", hours=15.0),
-        ]
     else:
         total_csp = 0.0
         items = []
+
+    return {
+        "total_hours": total_csp,
+        "required_hours": 40.0,
+        "is_fulfilled": total_csp >= 40.0,
+        "records": items
+    }
 
     return {
         "total_hours": total_csp,

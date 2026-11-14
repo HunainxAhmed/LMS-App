@@ -128,10 +128,6 @@ def get_dashboard_overview(
         sem_cr = sum(g.credit_hours for g in sem_grades)
         sem_pts = sum(g.grade_points * g.credit_hours for g in sem_grades)
         calc_sgpa = round(sem_pts / sem_cr, 2) if sem_cr > 0 else 0.0
-    elif account.enrollment == "02-136242-009":
-        calc_cgpa = 3.65
-        calc_sgpa = 3.63
-        total_cr = 69.0
     else:
         calc_cgpa = 0.0
         calc_sgpa = 0.0
@@ -155,27 +151,6 @@ def get_dashboard_overview(
     if csp_records:
         total_csp = sum(c.hours for c in csp_records)
         csp_list = [CommunityServiceSchema.from_orm(c) for c in csp_records]
-    elif account.enrollment == "02-136242-042":
-        # Authentic verified CSP records from CMS CommunityServices.aspx (33 total hours)
-        total_csp = 33.0
-        csp_list = [
-            CommunityServiceSchema(semester="Fall-2024", organization="Blood Donation Drive at BUKC", job_title="N/A", completed_date="Thursday, 3 October 2024", hours=5.0),
-            CommunityServiceSchema(semester="Spring-2025", organization="Participated in Raashan Drive in Slum areas of Khi.", job_title="N/A", completed_date="Monday, 17 February 2025", hours=6.0),
-            CommunityServiceSchema(semester="Spring-2025", organization="Participated at Thrift Bazaar", job_title="N/A", completed_date="Wednesday, 19 February 2025", hours=5.0),
-            CommunityServiceSchema(semester="Fall-2025", organization="Participated in Pink Ribbon Hospital Donation 2025", job_title="N/A", completed_date="Wednesday, 15 October 2025", hours=3.0),
-            CommunityServiceSchema(semester="Fall-2025", organization="Blood Donation Drive (AMTF)", job_title="N/A", completed_date="Thursday, 27 November 2025", hours=5.0),
-            CommunityServiceSchema(semester="Spring-2026", organization="Participated in a seminar on \"Eye Health Awareness\" by FIO Hospital", job_title="N/A", completed_date="Tuesday, 28 April 2026", hours=2.0),
-            CommunityServiceSchema(semester="Summer-2026", organization="Participated in donation to Dar-ul-Sukun", job_title="N/A", completed_date="Wednesday, 29 July 2026", hours=3.0),
-            CommunityServiceSchema(semester="Summer-2026", organization="Participated in observance of Youm-e-Istehsaal at BUKC", job_title="N/A", completed_date="Thursday, 6 August 2026", hours=5.0),
-        ]
-    elif account.enrollment == "02-136242-009":
-        total_csp = 35.0
-        csp_list = [
-            CommunityServiceSchema(semester="Fall-2024", organization="Blood Donation Drive at BUKC", job_title="N/A", completed_date="Thursday, 3 October 2024", hours=5.0),
-            CommunityServiceSchema(semester="Spring-2025", organization="Campus Cleanliness & Plantation Campaign", job_title="N/A", completed_date="Wednesday, 12 March 2025", hours=10.0),
-            CommunityServiceSchema(semester="Fall-2025", organization="Pink Ribbon Breast Cancer Awareness Drive", job_title="N/A", completed_date="Wednesday, 15 October 2025", hours=5.0),
-            CommunityServiceSchema(semester="Spring-2026", organization="Flood Relief & Ration Distribution Support", job_title="N/A", completed_date="Tuesday, 21 April 2026", hours=15.0),
-        ]
     else:
         total_csp = 0.0
         csp_list = []

@@ -341,6 +341,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             set({ syncProgressStep: "All records synchronized successfully! ✅" });
             invalidateAllAcademicQueries();
             break;
+          } else if (status.status === "WARNING") {
+            set({ syncProgressStep: status.current_step || "Synchronization updated" });
+            invalidateAllAcademicQueries();
+            break;
           } else if (status.status === "FAILED") {
             set({ syncProgressStep: status.error_message || "Sync encountered an error" });
             break;

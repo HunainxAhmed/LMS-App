@@ -1,10 +1,12 @@
+import json
+import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.database.session import get_db, SessionLocal
 from app.api.deps import get_current_user, get_current_university_account
-from app.models.user import User, UniversityAccount, EncryptedCredential
+from app.models.user import User, UniversityAccount, EncryptedCredential, EncryptedSession
 from app.schemas.auth import (
     LMSConnectRequest,
     LMSVerifyResponse,
@@ -61,7 +63,7 @@ async def connect_university_account(
             program=student_info.get("program") or "",
             current_semester=student_info.get("current_semester") or "",
             cloud_monitoring_enabled=req.enable_cloud_monitoring,
-            last_synced_at=datetime.now(timezone.utc),
+            last_synced_at=None,
             last_sync_status="CONNECTED",
         )
         db.add(account)
@@ -73,6 +75,26 @@ async def connect_university_account(
         account.cloud_monitoring_enabled = req.enable_cloud_monitoring
         if student_info.get("full_name"):
             account.full_name = student_info["full_name"]
+
+    # Save active session cookies immediately
+    if engine.cookies:
+        try:
+            cookies_json = json.dumps(engine.cookies)
+            enc_sess = encrypt_credential(cookies_json)
+            if not account.encrypted_session:
+                account.encrypted_session = EncryptedSession(
+                    account_id=account.id,
+                    cookies_json_encrypted=enc_sess["ciphertext"],
+                    nonce=enc_sess["nonce"],
+                    updated_at=datetime.now(timezone.utc),
+                )
+                db.add(account.encrypted_session)
+            else:
+                account.encrypted_session.cookies_json_encrypted = enc_sess["ciphertext"]
+                account.encrypted_session.nonce = enc_sess["nonce"]
+                account.encrypted_session.updated_at = datetime.now(timezone.utc)
+        except Exception as sess_err:
+            logger.debug(f"Session save note: {sess_err}")
 
     # Handle encrypted credentials for cloud monitoring mode
     if req.enable_cloud_monitoring:
@@ -97,24 +119,41 @@ async def connect_university_account(
     db.commit()
     db.refresh(account)
 
-    # Dispatch full data synchronization as an async background task so student login is fast (3s) and never freezes
-    async def _run_initial_sync(acc_id: str, pw: str):
-        bg_db = SessionLocal()
-        try:
-            acc = bg_db.query(UniversityAccount).filter(UniversityAccount.id == acc_id).first()
-            if acc:
-                await run_account_sync(
-                    db=bg_db,
-                    account=acc,
-                    trigger_type="INITIAL_CONNECT",
-                    override_password=pw
-                )
-        except Exception as err:
-            logger.warning(f"Background initial sync note: {err}")
-        finally:
-            bg_db.close()
+    # Attempt fast inline initial sync (up to 12s) so student dashboard loads completely on login!
+    initial_sync_done = False
+    try:
+        await asyncio.wait_for(
+            run_account_sync(
+                db=db,
+                account=account,
+                trigger_type="INITIAL_CONNECT",
+                override_password=req.password
+            ),
+            timeout=12.0
+        )
+        initial_sync_done = True
+        logger.info(f"Inline initial sync completed successfully for {account.enrollment}")
+    except Exception as sync_err:
+        logger.warning(f"Initial sync inline note: {sync_err}. Dispatching background task fallback...")
 
-    background_tasks.add_task(_run_initial_sync, account.id, req.password)
+    if not initial_sync_done:
+        async def _run_initial_sync(acc_id: str, pw: str):
+            bg_db = SessionLocal()
+            try:
+                acc = bg_db.query(UniversityAccount).filter(UniversityAccount.id == acc_id).first()
+                if acc:
+                    await run_account_sync(
+                        db=bg_db,
+                        account=acc,
+                        trigger_type="INITIAL_CONNECT",
+                        override_password=pw
+                    )
+            except Exception as err:
+                logger.warning(f"Background initial sync note: {err}")
+            finally:
+                bg_db.close()
+
+        background_tasks.add_task(_run_initial_sync, account.id, req.password)
 
     return LMSVerifyResponse(
         success=True,
@@ -213,12 +252,14 @@ async def connect_demo_university_account(
         account.last_sync_status = "SUCCESS"
 
     # Seed demo academic records
-    from app.models.academic import Course, AttendanceRecord, AttendanceSession, Assignment, LectureMaterial
+    from app.models.academic import Course, AttendanceRecord, AttendanceSession, Assignment, LectureMaterial, Grade, CommunityService
     # Clear old records for clean demo
     db.query(Assignment).filter(Assignment.account_id == account.id).delete()
     db.query(AttendanceRecord).filter(AttendanceRecord.account_id == account.id).delete()
     db.query(LectureMaterial).filter(LectureMaterial.account_id == account.id).delete()
     db.query(Course).filter(Course.account_id == account.id).delete()
+    db.query(Grade).filter(Grade.account_id == account.id).delete()
+    db.query(CommunityService).filter(CommunityService.account_id == account.id).delete()
 
     # 1. Courses & Attendance
     demo_courses = [
@@ -441,6 +482,43 @@ async def connect_demo_university_account(
             fingerprint=f"demo_mat_{dm['course']}_{dm['week']}",
         )
         db.add(mat)
+
+    # 4. Demo Academic Grades & Transcripts
+    demo_grades = [
+        {"code": "CS-111", "title": "Programming Fundamentals", "grade": "A", "points": 4.0, "credits": 4.0, "semester": "Fall 2023"},
+        {"code": "CS-122", "title": "Discrete Structures", "grade": "A-", "points": 3.67, "credits": 3.0, "semester": "Fall 2023"},
+        {"code": "CS-211", "title": "Object Oriented Programming", "grade": "B+", "points": 3.33, "credits": 4.0, "semester": "Spring 2024"},
+        {"code": "CS-212", "title": "Data Structures & Algorithms", "grade": "A", "points": 4.0, "credits": 4.0, "semester": "Fall 2024"},
+        {"code": "CS-225", "title": "Computer Organization & Assembly", "grade": "B", "points": 3.0, "credits": 3.0, "semester": "Spring 2025"},
+    ]
+    for dg in demo_grades:
+        g = Grade(
+            account_id=account.id,
+            course_code=dg["code"],
+            course_title=dg["title"],
+            grade=dg["grade"],
+            grade_points=dg["points"],
+            credit_hours=dg["credits"],
+            semester=dg["semester"],
+        )
+        db.add(g)
+
+    # 5. Demo Community Service Program (CSP) Records
+    demo_csp = [
+        {"semester": "Fall 2024", "organization": "Blood Donation Drive at BUKC", "hours": 5.0, "date": "Thursday, 3 October 2024"},
+        {"semester": "Spring 2025", "organization": "Campus Cleanliness Campaign", "hours": 10.0, "date": "Wednesday, 12 March 2025"},
+        {"semester": "Fall 2025", "organization": "Pink Ribbon Hospital Donation", "hours": 5.0, "date": "Wednesday, 15 October 2025"},
+    ]
+    for dcs in demo_csp:
+        cs = CommunityService(
+            account_id=account.id,
+            semester=dcs["semester"],
+            organization=dcs["organization"],
+            job_title="N/A",
+            completed_date=dcs["date"],
+            hours=dcs["hours"],
+        )
+        db.add(cs)
 
     db.commit()
     db.refresh(account)

@@ -17,7 +17,7 @@ import {
   launchApkInstaller,
 } from "../services/updater";
 import {
-  Sparkles,
+  ArrowUpCircle,
   Download,
   CheckCircle2,
   AlertCircle,
@@ -118,9 +118,9 @@ export const InAppUpdateModal: React.FC<InAppUpdateModalProps> = ({
           {/* Header Icon */}
           <View style={[styles.iconCircle, isDownloaded && styles.iconCircleSuccess]}>
             {isDownloaded ? (
-              <CheckCircle2 size={28} color="#059669" />
+              <PackageCheck size={28} color="#059669" />
             ) : (
-              <Sparkles size={28} color={colors.primary} />
+              <ArrowUpCircle size={28} color={colors.primary} />
             )}
           </View>
 

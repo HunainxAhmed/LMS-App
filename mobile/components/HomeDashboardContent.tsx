@@ -116,7 +116,7 @@ export const HomeDashboardContent: React.FC = () => {
     critical_courses_count: offlineData.attendance?.filter((c: any) => c.risk_status === "CRITICAL").length || 0,
     upcoming_assignments: offlineData.assignments || [],
     attendance_cards: offlineData.attendance || [],
-    total_csp_hours: offlineData.total_csp_hours || (account?.enrollment === "02-136242-042" ? 33.0 : account?.enrollment === "02-136242-009" ? 35.0 : 0.0),
+    total_csp_hours: offlineData.total_csp_hours ?? 0.0,
     csp_required_hours: 40.0,
     community_services: offlineData.community_services || [],
     recent_activity: [],

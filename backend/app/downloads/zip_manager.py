@@ -104,8 +104,8 @@ class DownloadManager:
         course_name: str,
         materials: List[Dict[str, str]],
         assignments: Optional[List[Dict[str, str]]] = None,
-        student_name: str = "Hunain Ahmed",
-        enrollment: str = "02-136242-009",
+        student_name: str = "Student",
+        enrollment: str = "",
     ) -> str:
         """
         Downloads all available course lecture notes and slides in sequential order,
