@@ -24,7 +24,8 @@
         "POST_NOTIFICATIONS",
         "VIBRATE",
         "WRITE_EXTERNAL_STORAGE",
-        "READ_EXTERNAL_STORAGE"
+        "READ_EXTERNAL_STORAGE",
+        "REQUEST_INSTALL_PACKAGES"
       ]
     },
     "plugins": [

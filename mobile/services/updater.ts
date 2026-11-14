@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { Platform, Linking } from "react-native";
 import * as Updates from "expo-updates";
 import * as FileSystem from "expo-file-system/legacy";
 import * as IntentLauncher from "expo-intent-launcher";
@@ -115,19 +115,52 @@ export async function applyOtaUpdate(
 }
 
 /**
+ * Prompt Android to install the downloaded APK file.
+ * Handles content URI conversion, proper Android intent flags, and browser fallback.
+ */
+export async function launchApkInstaller(
+  fileUri: string,
+  fallbackDownloadUrl?: string
+): Promise<void> {
+  if (Platform.OS !== "android") {
+    if (fallbackDownloadUrl) {
+      await Linking.openURL(fallbackDownloadUrl);
+    }
+    return;
+  }
+
+  try {
+    const contentUri = await FileSystem.getContentUriAsync(fileUri);
+    // 268435457 = FLAG_GRANT_READ_URI_PERMISSION (1) | FLAG_ACTIVITY_NEW_TASK (0x10000000 / 268435456)
+    await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
+      data: contentUri,
+      flags: 268435457,
+      type: "application/vnd.android.package-archive",
+    });
+  } catch (err: any) {
+    console.warn("Native package installer launch failed, opening fallback:", err);
+    if (fallbackDownloadUrl) {
+      await Linking.openURL(fallbackDownloadUrl);
+    } else {
+      throw err;
+    }
+  }
+}
+
+/**
  * Download APK file with real-time progress bar and launch package installer
  */
 export async function downloadAndInstallApk(
   downloadUrl: string,
   onProgress: (progress: DownloadProgress) => void
-): Promise<void> {
+): Promise<{ success: boolean; localUri: string }> {
   // Graceful browser handling when testing in web preview
   if (Platform.OS === "web") {
     if (typeof window !== "undefined") {
       onProgress({ progressPercent: 100, bytesWritten: 100, totalBytes: 100 });
       window.open(downloadUrl, "_blank");
     }
-    return;
+    return { success: true, localUri: downloadUrl };
   }
 
   if (Platform.OS !== "android") {
@@ -149,7 +182,7 @@ export async function downloadAndInstallApk(
       onProgress({
         progressPercent: pct,
         bytesWritten: written,
-        totalBytes: total > 0 ? total : 35000000,
+        totalBytes: total > 0 ? total : 33400000,
       });
     }
   );
@@ -162,17 +195,16 @@ export async function downloadAndInstallApk(
   // 100% completion notification
   onProgress({
     progressPercent: 100,
-    bytesWritten: 35000000,
-    totalBytes: 35000000,
+    bytesWritten: 33400000,
+    totalBytes: 33400000,
   });
 
-  // Convert to content URI for Android Package Installer
-  const contentUri = await FileSystem.getContentUriAsync(result.uri);
+  // Attempt to launch installer
+  try {
+    await launchApkInstaller(result.uri, downloadUrl);
+  } catch (launchErr) {
+    console.warn("Auto-launch failed, user can tap Install button:", launchErr);
+  }
 
-  // Launch Android Package Installer Intent
-  await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
-    data: contentUri,
-    flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
-    type: "application/vnd.android.package-archive",
-  });
+  return { success: true, localUri: result.uri };
 }

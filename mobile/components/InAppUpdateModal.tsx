@@ -5,8 +5,8 @@ import {
   StyleSheet,
   Modal,
   TouchableOpacity,
-  ActivityIndicator,
   ScrollView,
+  Linking,
 } from "react-native";
 import { colors } from "../theme/colors";
 import {
@@ -14,6 +14,7 @@ import {
   DownloadProgress,
   applyOtaUpdate,
   downloadAndInstallApk,
+  launchApkInstaller,
 } from "../services/updater";
 import {
   Sparkles,
@@ -22,8 +23,8 @@ import {
   AlertCircle,
   X,
   ArrowRight,
-  ShieldCheck,
-  RefreshCw,
+  ExternalLink,
+  PackageCheck,
 } from "lucide-react-native";
 
 interface InAppUpdateModalProps {
@@ -38,6 +39,8 @@ export const InAppUpdateModal: React.FC<InAppUpdateModalProps> = ({
   onDismiss,
 }) => {
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
+  const [isDownloaded, setIsDownloaded] = useState<boolean>(false);
+  const [downloadedUri, setDownloadedUri] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress>({
     progressPercent: 0,
     bytesWritten: 0,
@@ -63,14 +66,36 @@ export const InAppUpdateModal: React.FC<InAppUpdateModalProps> = ({
           setDownloadProgress(progress);
         });
       } else if (updateInfo.type === "APK" && updateInfo.downloadUrl) {
-        await downloadAndInstallApk(updateInfo.downloadUrl, (progress) => {
+        const res = await downloadAndInstallApk(updateInfo.downloadUrl, (progress) => {
           setDownloadProgress(progress);
         });
+        if (res && res.localUri) {
+          setDownloadedUri(res.localUri);
+          setIsDownloaded(true);
+        }
       }
     } catch (err: any) {
       console.error("Update failed:", err);
-      setErrorMessage(err.message || "Failed to download update. Please try again.");
+      setErrorMessage(
+        err.message || "Failed to download update package. You can download directly via browser below."
+      );
+    } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleInstallDownloaded = async () => {
+    if (downloadedUri) {
+      await launchApkInstaller(downloadedUri, updateInfo.downloadUrl);
+    } else if (updateInfo.downloadUrl) {
+      await Linking.openURL(updateInfo.downloadUrl);
+    }
+  };
+
+  const handleBrowserDownload = async () => {
+    if (updateInfo.downloadUrl) {
+      await Linking.openURL(updateInfo.downloadUrl);
+      onDismiss();
     }
   };
 
@@ -84,21 +109,29 @@ export const InAppUpdateModal: React.FC<InAppUpdateModalProps> = ({
       <View style={styles.overlay}>
         <View style={styles.card}>
           {/* Close button if optional */}
-          {!updateInfo.isMandatory && !isUpdating && (
-            <TouchableOpacity style={styles.closeBtn} onPress={onDismiss}>
+          {!updateInfo.isMandatory && (
+            <TouchableOpacity style={styles.closeBtn} onPress={onDismiss} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <X size={18} color={colors.textSecondary} />
             </TouchableOpacity>
           )}
 
           {/* Header Icon */}
-          <View style={styles.iconCircle}>
-            <Sparkles size={28} color={colors.primary} />
+          <View style={[styles.iconCircle, isDownloaded && styles.iconCircleSuccess]}>
+            {isDownloaded ? (
+              <CheckCircle2 size={28} color="#059669" />
+            ) : (
+              <Sparkles size={28} color={colors.primary} />
+            )}
           </View>
 
           {/* Title */}
-          <Text style={styles.title}>Update Available! 🚀</Text>
+          <Text style={styles.title}>
+            {isDownloaded ? "Update Ready to Install! 🚀" : "Update Available! 🚀"}
+          </Text>
           <Text style={styles.subtitle}>
-            A newer, faster version of CampusFlow is ready to install.
+            {isDownloaded
+              ? "The APK package has been downloaded successfully. Tap below to launch installer."
+              : "A newer, faster version of CampusFlow is ready to install."}
           </Text>
 
           {/* Version Transition Pill */}
@@ -112,18 +145,20 @@ export const InAppUpdateModal: React.FC<InAppUpdateModalProps> = ({
             </View>
           </View>
 
-          {/* Release Notes */}
-          <View style={styles.notesBox}>
-            <Text style={styles.notesTitle}>WHAT'S NEW:</Text>
-            <ScrollView style={styles.notesScroll} nestedScrollEnabled>
-              {updateInfo.releaseNotes.map((note, idx) => (
-                <View key={idx} style={styles.noteItem}>
-                  <CheckCircle2 size={13} color={colors.primary} style={{ marginTop: 2 }} />
-                  <Text style={styles.noteText}>{note}</Text>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
+          {/* Release Notes (Show only before download) */}
+          {!isUpdating && !isDownloaded && (
+            <View style={styles.notesBox}>
+              <Text style={styles.notesTitle}>WHAT'S NEW:</Text>
+              <ScrollView style={styles.notesScroll} nestedScrollEnabled>
+                {updateInfo.releaseNotes.map((note, idx) => (
+                  <View key={idx} style={styles.noteItem}>
+                    <CheckCircle2 size={13} color={colors.primary} style={{ marginTop: 2 }} />
+                    <Text style={styles.noteText}>{note}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
           {/* Error Message */}
           {errorMessage && (
@@ -133,8 +168,8 @@ export const InAppUpdateModal: React.FC<InAppUpdateModalProps> = ({
             </View>
           )}
 
-          {/* Progress or Action Area */}
-          {isUpdating ? (
+          {/* State 1: Download in Progress */}
+          {isUpdating && (
             <View style={styles.progressContainer}>
               <View style={styles.progressHeader}>
                 <Text style={styles.progressLabel}>
@@ -166,7 +201,33 @@ export const InAppUpdateModal: React.FC<InAppUpdateModalProps> = ({
                   : "Please keep the app open while downloading."}
               </Text>
             </View>
-          ) : (
+          )}
+
+          {/* State 2: Download Complete (Ready to Install) */}
+          {isDownloaded && (
+            <View style={styles.buttonsContainer}>
+              <TouchableOpacity
+                style={styles.updateButton}
+                onPress={handleInstallDownloaded}
+                activeOpacity={0.8}
+              >
+                <PackageCheck size={16} color="#fff" />
+                <Text style={styles.updateButtonText}>Launch Package Installer</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={handleBrowserDownload}
+                activeOpacity={0.8}
+              >
+                <ExternalLink size={15} color={colors.primary} />
+                <Text style={styles.secondaryButtonText}>Open in Browser / Chrome</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* State 3: Ready to Start Download */}
+          {!isUpdating && !isDownloaded && (
             <View style={styles.buttonsContainer}>
               <TouchableOpacity
                 style={styles.updateButton}
@@ -177,6 +238,15 @@ export const InAppUpdateModal: React.FC<InAppUpdateModalProps> = ({
                 <Text style={styles.updateButtonText}>
                   {updateInfo.type === "OTA" ? "Update & Restart Now" : "Download & Install Update"}
                 </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={handleBrowserDownload}
+                activeOpacity={0.8}
+              >
+                <ExternalLink size={15} color={colors.primary} />
+                <Text style={styles.secondaryButtonText}>Or Download via Browser (Direct APK)</Text>
               </TouchableOpacity>
 
               {!updateInfo.isMandatory && (
@@ -235,10 +305,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#a7f3d0",
   },
+  iconCircleSuccess: {
+    backgroundColor: "#ecfdf5",
+    borderColor: "#a7f3d0",
+  },
   title: {
     fontSize: 19,
     fontWeight: "800",
     color: colors.textPrimary,
+    textAlign: "center",
   },
   subtitle: {
     fontSize: 12,
@@ -251,80 +326,85 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginVertical: 12,
+    marginVertical: 14,
   },
   versionPillOld: {
     backgroundColor: colors.surfaceSecondary,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 0.5,
+    borderColor: colors.surfaceBorder,
   },
   versionPillOldText: {
-    fontSize: 11,
-    color: colors.textMuted,
+    fontSize: 12,
     fontWeight: "600",
+    color: colors.textMuted,
   },
   versionPillNew: {
     backgroundColor: colors.primarySubtle,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#a7f3d0",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 0.5,
+    borderColor: colors.primaryBorder,
   },
   versionPillNewText: {
-    fontSize: 11,
+    fontSize: 12,
+    fontWeight: "800",
     color: colors.primary,
-    fontWeight: "700",
   },
   notesBox: {
     width: "100%",
     backgroundColor: colors.surfaceSecondary,
     borderRadius: 12,
     padding: 12,
-    marginVertical: 6,
-    maxHeight: 140,
+    borderWidth: 0.5,
+    borderColor: colors.surfaceBorder,
+    marginBottom: 16,
   },
   notesTitle: {
     fontSize: 10,
     fontWeight: "800",
     color: colors.textSecondary,
     letterSpacing: 0.6,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   notesScroll: {
-    maxHeight: 110,
+    maxHeight: 120,
   },
   noteItem: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 6,
-    marginBottom: 5,
+    gap: 8,
+    marginBottom: 6,
   },
   noteText: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.textPrimary,
-    lineHeight: 16,
     flex: 1,
+    lineHeight: 16,
   },
   errorBox: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#fef2f2",
-    padding: 8,
+    backgroundColor: "#fff1f2",
     borderRadius: 8,
-    marginTop: 6,
+    padding: 10,
+    borderWidth: 0.5,
+    borderColor: "#fecdd3",
+    marginBottom: 12,
     width: "100%",
   },
   errorText: {
-    fontSize: 11,
+    fontSize: 11.5,
     color: colors.statusDanger,
     flex: 1,
   },
   progressContainer: {
     width: "100%",
-    marginTop: 14,
+    marginTop: 6,
   },
   progressHeader: {
     flexDirection: "row",
@@ -339,14 +419,16 @@ const styles = StyleSheet.create({
   },
   progressBytes: {
     fontSize: 11,
+    fontWeight: "600",
     color: colors.textMuted,
-    fontWeight: "500",
   },
   progressBarBg: {
     height: 8,
-    backgroundColor: "#e2e8f0",
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 4,
     overflow: "hidden",
+    borderWidth: 0.5,
+    borderColor: colors.surfaceBorder,
   },
   progressBarFill: {
     height: "100%",
@@ -357,34 +439,52 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textMuted,
     textAlign: "center",
-    marginTop: 6,
+    marginTop: 8,
   },
   buttonsContainer: {
     width: "100%",
-    marginTop: 14,
     gap: 8,
+    marginTop: 4,
   },
   updateButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
-    borderRadius: 12,
     gap: 8,
+    backgroundColor: colors.primary,
+    paddingVertical: 13,
+    borderRadius: 12,
+    width: "100%",
   },
   updateButtonText: {
-    color: "#fff",
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: "700",
+    color: "#fff",
+  },
+  secondaryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: colors.primarySubtle,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    paddingVertical: 11,
+    borderRadius: 12,
+    width: "100%",
+  },
+  secondaryButtonText: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: colors.primary,
   },
   laterButton: {
-    alignItems: "center",
     paddingVertical: 8,
+    alignItems: "center",
   },
   laterButtonText: {
-    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: "600",
+    color: colors.textMuted,
   },
 });
