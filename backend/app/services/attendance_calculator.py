@@ -85,24 +85,34 @@ def calculate_safe_misses(
     present: float,
     total: float,
     required_percentage: float = 75.0,
-    credit_hours: float = 3.0,
+    credit_hours: float = None,
     course_title: str = "",
     course_code: str = "",
-    absent_hours: float = 0.0,
+    absent_hours: float = None,
 ) -> int:
     """
-    Returns the overall safe skips remaining for the course.
+    Returns the safe misses remaining.
+    If credit_hours or absent_hours is explicitly provided for full semester modeling,
+    calculates overall semester safe skips.
+    Otherwise, uses the standard formula based on current conducted classes:
+    floor(present / (required_percentage / 100.0) - total).
     """
-    # Use explicit absent_hours if provided, else compute total - present
-    abs_hrs = absent_hours if absent_hours > 0 else max(0.0, total - present)
-    skips = calculate_overall_safe_skips(
-        absent_hours=abs_hrs,
-        credit_hours=credit_hours,
-        course_title=course_title,
-        course_code=course_code,
-        required_percentage=required_percentage,
-    )
-    return skips["safe_skips"]
+    if credit_hours is not None or absent_hours is not None:
+        abs_hrs = absent_hours if absent_hours is not None else max(0.0, total - present)
+        skips = calculate_overall_safe_skips(
+            absent_hours=abs_hrs,
+            credit_hours=credit_hours or 3.0,
+            course_title=course_title,
+            course_code=course_code,
+            required_percentage=required_percentage,
+        )
+        return skips["safe_skips"]
+
+    if total <= 0 or present <= 0:
+        return 0
+    max_total = present / (required_percentage / 100.0)
+    safe = math.floor(max_total - total)
+    return max(0, safe)
 
 def calculate_needed_to_recover(present: float, total: float, required_percentage: float = 75.0) -> int:
     """
@@ -130,14 +140,14 @@ def calculate_needed_to_recover(present: float, total: float, required_percentag
 
 def determine_risk_status(percentage: float, required_percentage: float = 75.0) -> str:
     """
-    Bahria University Official Examination Eligibility:
-    - SAFE: >= 75.0% (Exam eligible without fine or permission)
-    - WARNING: 60.0% - 74.9% (Allowed with fine of Rs. 500/hr shortfall + University approval)
-    - CRITICAL: < 60.0% (Debarred - Cannot sit exam, awarded 'I' Grade)
+    Bahria University Examination Eligibility:
+    - SAFE: >= 75.0%
+    - WARNING: 65.0% - 74.9%
+    - CRITICAL: < 65.0%
     """
     if percentage >= required_percentage:
         return "SAFE"
-    elif percentage >= 60.0:
+    elif percentage >= 65.0:
         return "WARNING"
     else:
         return "CRITICAL"

@@ -150,9 +150,20 @@ async def run_account_sync(
         if info.get("current_semester"):
             account.current_semester = info["current_semester"]
 
-        # 7. Normalize & Save Courses
+        # 7. Normalize & Save Courses (Merge LMS courses and CMS Registered Courses)
+        all_incoming_courses = list(scraped.get("courses", []))
+        for rc in scraped.get("registered_courses", []):
+            rc_code = rc.get("code", "")
+            rc_title = rc.get("title", "")
+            if not any(
+                (c.get("code") == rc_code and rc_code)
+                or (c.get("title", "").strip().lower() == rc_title.strip().lower() and rc_title)
+                for c in all_incoming_courses
+            ):
+                all_incoming_courses.append(rc)
+
         course_map: Dict[str, Course] = {}
-        for c in scraped["courses"]:
+        for c in all_incoming_courses:
             c_title = (c.get("title") or c.get("name") or "").strip()
             c_code = (c.get("code") or "").strip()
             c_lms_id = c.get("value", "")
@@ -452,18 +463,25 @@ async def run_account_sync(
                 account.encrypted_session.updated_at = datetime.now(timezone.utc)
 
         # 13. Update Sync Status
-        is_empty_scrape = len(scraped["courses"]) == 0 and len(scraped["attendance"]) == 0
-        if is_empty_scrape:
-            sync_job.status = "WARNING"
-            sync_job.current_step = "Portal verification incomplete"
-            sync_job.error_message = "No registered courses or attendance returned by university portal for current term."
-            account.last_sync_status = "WARNING"
-            account.last_sync_error = "No enrolled courses or attendance discovered. Verify portal status."
-        else:
+        has_any_data = (
+            len(scraped.get("courses", [])) > 0
+            or len(scraped.get("attendance", [])) > 0
+            or len(scraped.get("assignments", [])) > 0
+            or bool(scraped.get("exam_results", {}).get("semesters"))
+            or bool(scraped.get("community_services", {}).get("records"))
+        )
+        if has_any_data:
             sync_job.status = "SUCCESS"
             sync_job.current_step = "Synchronization complete"
             account.last_sync_status = "SUCCESS"
             account.last_sync_error = None
+            account.last_synced_at = datetime.now(timezone.utc)
+        else:
+            sync_job.status = "WARNING"
+            sync_job.current_step = "Portal verification incomplete"
+            sync_job.error_message = "No registered courses, attendance, or exam records returned by university portal."
+            account.last_sync_status = "WARNING"
+            account.last_sync_error = "No enrolled courses or attendance discovered. Verify portal status."
             account.last_synced_at = datetime.now(timezone.utc)
 
         sync_job.assignments_count = len(scraped["assignments"])

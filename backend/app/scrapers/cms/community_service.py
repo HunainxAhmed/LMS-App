@@ -64,15 +64,20 @@ def parse_cms_community_services(html: str) -> Dict[str, Any]:
             continue
 
         raw_texts = [td.get_text(strip=True) for td in tds]
+        row_txt = row.get_text().lower()
 
-        # Check if footer row (often just empty cells and a number in the last cell, e.g. "33")
-        if len(raw_texts) >= 5 and not raw_texts[0] and not raw_texts[1] and re.search(r"^\d+(\.\d+)?$", raw_texts[-1]):
-            try:
-                footer_tot = float(raw_texts[-1])
-                if footer_tot > total_hours:
-                    total_hours = footer_tot
-            except ValueError:
-                pass
+        # Check if footer row (contains 'total' or trailing total number)
+        if "total" in row_txt or (len(raw_texts) >= 5 and not raw_texts[0] and not raw_texts[1] and re.search(r"^\d+(\.\d+)?$", raw_texts[-1])):
+            for t in reversed(raw_texts):
+                m_tot = re.search(r"^\d+(\.\d+)?$", t)
+                if m_tot:
+                    try:
+                        footer_tot = float(m_tot.group())
+                        if footer_tot > total_hours:
+                            total_hours = footer_tot
+                    except ValueError:
+                        pass
+                    break
             continue
 
         sem_idx = header_indices.get("semester", 0)

@@ -37,17 +37,30 @@ async def trigger_sync(
     ).order_by(SyncJob.started_at.desc()).first()
 
     if active_job:
-        return SyncStatusResponse(
-            job_id=active_job.id,
-            status=active_job.status,
-            current_step=active_job.current_step,
-            assignments_count=active_job.assignments_count,
-            attendance_count=active_job.attendance_count,
-            materials_count=active_job.materials_count,
-            error_message=active_job.error_message,
-            started_at=active_job.started_at,
-            completed_at=active_job.completed_at,
-        )
+        now = datetime.now(timezone.utc)
+        job_start = active_job.started_at
+        if job_start and job_start.tzinfo is None:
+            job_start = job_start.replace(tzinfo=timezone.utc)
+
+        # If job has been running for > 60 seconds or force_fresh_login is requested, clear stale lock
+        if req.force_fresh_login or (job_start and (now - job_start).total_seconds() > 60):
+            active_job.status = "FAILED"
+            active_job.error_message = "Previous sync timed out"
+            active_job.completed_at = now
+            db.commit()
+            logger.warning(f"Cleared timed-out sync job {active_job.id} for account {account.id}")
+        else:
+            return SyncStatusResponse(
+                job_id=active_job.id,
+                status=active_job.status,
+                current_step=active_job.current_step,
+                assignments_count=active_job.assignments_count,
+                attendance_count=active_job.attendance_count,
+                materials_count=active_job.materials_count,
+                error_message=active_job.error_message,
+                started_at=active_job.started_at,
+                completed_at=active_job.completed_at,
+            )
 
     # Create job in database immediately
     job = SyncJob(

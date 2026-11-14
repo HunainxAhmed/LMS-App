@@ -127,7 +127,7 @@ def parse_attendance_html(html: str, required_percentage: float = 75.0) -> List[
             course_code=code,
             required_percentage=required_percentage,
         )
-        safe_misses = skips["safe_skips"]
+        safe_misses = calculate_safe_misses(present_hrs, total_hrs, required_percentage)
         fine_skips = skips["additional_fine_skips"]
         fine_amount = skips["fine_amount"]
         total_semester_hrs = skips["total_semester_hours"]

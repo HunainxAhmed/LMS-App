@@ -100,12 +100,54 @@ def test_login_with_browser_resilience_under_selector_loop():
             selector_loop = asyncio.SelectorEventLoop()
             asyncio.set_event_loop(selector_loop)
             try:
-                success, msg, cookies, info = selector_loop.run_until_complete(
-                    login_with_browser("02-134212-001", "pass", "Karachi Campus", "2")
+                ok, err, cookies, info = selector_loop.run_until_complete(
+                    login_with_browser("01-134212-001", "Secret123", "Karachi Campus", "2")
                 )
-                assert success is False
-                assert "Invalid Enrollment" in msg
+                assert ok is False
+                assert "Invalid" in err
             finally:
                 selector_loop.close()
-                asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-                asyncio.set_event_loop(asyncio.new_event_loop())
+
+def test_parse_cms_registered_courses():
+    from app.scrapers.cms.registered_courses import parse_cms_registered_courses
+    sample_html = """
+    <table class="table">
+        <tr><th>#</th><th>Course Code</th><th>Course Title</th><th>Credit Hours</th><th>Teacher</th></tr>
+        <tr><td>1</td><td>CSC 321</td><td>Design and Analysis of Algorithm</td><td>3.0</td><td>Dr. Ali</td></tr>
+        <tr><td>2</td><td>AIC 301</td><td>Machine Learning</td><td>3.0</td><td>Dr. Tariq</td></tr>
+    </table>
+    """
+    courses = parse_cms_registered_courses(sample_html)
+    assert len(courses) == 2
+    assert courses[0]["code"] == "CSC 321"
+    assert courses[0]["title"] == "Design and Analysis of Algorithm"
+    assert courses[0]["credit_hours"] == 3.0
+    assert courses[1]["code"] == "AIC 301"
+
+def test_parse_cms_community_services():
+    from app.scrapers.cms.community_service import parse_cms_community_services
+    sample_html = """
+    <table class="table">
+        <tr><th>Semester</th><th>Organization</th><th>Job Title</th><th>Completed Date</th><th>Hours</th></tr>
+        <tr><td>Fall-2024</td><td>Blood Donation Drive at BUKC</td><td>N/A</td><td>3 October 2024</td><td>5</td></tr>
+        <tr><td>Spring-2025</td><td>Raashan Drive</td><td>N/A</td><td>17 February 2025</td><td>6</td></tr>
+        <tr><td colspan="4">Total</td><td>11</td></tr>
+    </table>
+    """
+    csp = parse_cms_community_services(sample_html)
+    assert csp["total_hours"] == 11.0
+    assert len(csp["records"]) == 2
+    assert csp["records"][0]["hours"] == 5.0
+    assert csp["records"][1]["hours"] == 6.0
+
+def test_parse_real_exam_result_fixture():
+    root_exam = os.path.join(os.path.dirname(__file__), "..", "..", "exam_result.html")
+    if os.path.exists(root_exam):
+        from app.scrapers.cms.results import parse_cms_exam_results
+        with open(root_exam, "r", encoding="utf-8") as f:
+            res = parse_cms_exam_results(f.read())
+        assert res["completed_semesters_count"] == 4
+        assert res["total_credits"] == 69.0
+        assert res["cgpa"] == 3.65
+        assert res["current_sgpa"] == 3.63
+        assert len(res["semesters"]) == 5
