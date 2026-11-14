@@ -169,10 +169,10 @@ class DashboardOverviewSchema(BaseModel):
     enrollment: str
     campus_name: str
     current_semester: str
-    cgpa: float = 3.60
-    sgpa: float = 3.65
-    total_credit_hours: float = 63.0
-    academic_standing: str = "Good Standing"
+    cgpa: float = 0.0
+    sgpa: float = 0.0
+    total_credit_hours: float = 0.0
+    academic_standing: str = "Enrolled"
     pending_assignments_count: int
     due_24h_count: int
     due_48h_count: int
@@ -187,5 +187,5 @@ class DashboardOverviewSchema(BaseModel):
     attendance_cards: List[AttendanceRecordSchema]
     recent_activity: List[ActivityItem]
     last_synced_at: Optional[datetime] = None
-    sync_status: str
+    sync_status: str = "CONNECTED"
 

@@ -13,8 +13,8 @@ def parse_cms_exam_results(html: str) -> Dict[str, Any]:
 
     semesters = []
     total_completed_credits = 0.0
-    latest_cgpa = 3.65
-    latest_sgpa = 3.63
+    latest_cgpa = 0.0
+    latest_sgpa = 0.0
 
     for tbl in tables:
         caption = tbl.find("caption")

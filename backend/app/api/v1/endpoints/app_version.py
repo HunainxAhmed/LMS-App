@@ -27,18 +27,18 @@ class UpdateVersionPayload(BaseModel):
 
 # Default configured production release info
 CURRENT_CONFIG = {
-    "latest_version": "1.0.0",
+    "latest_version": "1.0.1",
     "is_mandatory": False,
     "release_notes": [
-        "Dynamic In-App Update system with real-time download progress bar",
-        "Refined sequential coursework cards with single-line due dates",
-        "Secured Lab Task 3 deadline protection against accidental deletion",
-        "Proprietary Attendance Health Track & Safe Skips Shield (competitor-free)",
-        "Refreshed Emerald & Slate executive university color theme"
+        "Dynamic Provisional Results tailored to your student account & CGPA",
+        "Enhanced Bahria University portal sync for all students & campuses",
+        "Auto-resolution for survey redirects & seamless coursework loading",
+        "Instant smooth tab switching & refined download management"
     ],
     "download_url": "/api/v1/app/download-apk",
-    "file_size_bytes": 35840000,
-    "published_at": "2026-11-08T17:30:00Z"
+    "direct_apk_url": "https://expo.dev/artifacts/eas/Y8NuDNH4gAagMegHD7qVeVko8n1xvWyvxyC739auCVc.apk",
+    "file_size_bytes": 36700000,
+    "published_at": "2026-11-14T08:00:00Z"
 }
 
 def compare_versions(v1: str, v2: str) -> int:
@@ -105,7 +105,7 @@ def download_latest_apk():
     """
     Serves the latest CampusFlow Android APK file.
     If a local file exists in backend/uploads/apk/campusflow.apk, it streams it directly.
-    Otherwise redirects to GitHub Releases or configured CDN.
+    Otherwise redirects to configured direct APK URL or GitHub Releases.
     """
     apk_dir = os.path.join(os.getcwd(), "backend", "uploads", "apk")
     apk_path = os.path.join(apk_dir, "campusflow.apk")
@@ -115,6 +115,10 @@ def download_latest_apk():
             media_type="application/vnd.android.package-archive",
             filename="campusflow.apk"
         )
+
+    direct_url = CURRENT_CONFIG.get("direct_apk_url")
+    if direct_url:
+        return RedirectResponse(url=direct_url)
 
     # Fallback redirect to latest release
     github_release_url = "https://github.com/hunain/campusflow/releases/latest/download/campusflow.apk"

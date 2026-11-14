@@ -2,7 +2,7 @@ import re
 import os
 import base64
 import logging
-from typing import List, Optional
+from typing import List, Optional, Tuple, Dict, Any
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, Query, HTTPException, status, UploadFile, File
@@ -511,6 +511,27 @@ def get_grades(
     grades = db.query(Grade).filter(Grade.account_id == account.id).all()
     return grades
 
+def _semester_sort_key(sem_name: str) -> Tuple[int, int]:
+    """Helper to sort academic semesters chronologically (e.g. Fall-2024 before Spring-2025)."""
+    year_match = re.search(r"20(\d\d)", sem_name)
+    year = int(year_match.group(1)) if year_match else 0
+    if not year:
+        short_year = re.search(r"\b(\d{2})\b", sem_name)
+        year = int(short_year.group(1)) if short_year else 99
+
+    name_lower = sem_name.lower()
+    if "spring" in name_lower:
+        season = 1
+    elif "summer" in name_lower:
+        season = 2
+    elif "fall" in name_lower or "autumn" in name_lower:
+        season = 3
+    elif "winter" in name_lower:
+        season = 4
+    else:
+        season = 5
+    return (year, season)
+
 @router.get("/results", response_model=FullAcademicResultSchema)
 def get_academic_results(
     db: Session = Depends(get_db),
@@ -518,18 +539,8 @@ def get_academic_results(
 ):
     """
     Returns full official academic standing, cumulative GPA (CGPA), semester GPAs, and course breakdown.
-    Matches Bahria University Provisional Results & LMS+ exactly.
+    Calculated 100% dynamically per student account from their verified Grade records.
     """
-    # Canonical semester ordering for Hunain Ahmed (Intake: Fall-2024)
-    sem_order = ["Fall-2024", "Spring-2025", "Fall-2025", "Spring-2026", "Fall-2026"]
-    official_cgpa_map = {
-        "Fall-2024": (3.67, 3.67),
-        "Spring-2025": (3.69, 3.68),
-        "Fall-2025": (3.61, 3.65),
-        "Spring-2026": (3.63, 3.65),
-        "Fall-2026": (0.0, 3.65),
-    }
-
     grades = db.query(Grade).filter(Grade.account_id == account.id).all()
 
     if grades:
@@ -540,28 +551,43 @@ def get_academic_results(
                 semesters_dict[sem] = []
             semesters_dict[sem].append(g)
 
-        # Sort semesters by canonical order
+        # Sort semesters chronologically
         sorted_sem_names = sorted(
             semesters_dict.keys(),
-            key=lambda x: sem_order.index(x) if x in sem_order else 99
+            key=_semester_sort_key
         )
 
         semester_list = []
+        cum_points = 0.0
+        cum_graded_credits = 0.0
         total_cr_completed = 0.0
-        latest_sgpa = 3.63
-        latest_cgpa = 3.65
+        latest_sgpa = 0.0
+        latest_cgpa = 0.0
         completed_count = 0
 
         for sem_name in sorted_sem_names:
             sem_courses = semesters_dict[sem_name]
-            is_in_prog = any(c.grade == "N/A" for c in sem_courses) or sem_name == "Fall-2026"
+            graded_courses = [
+                c for c in sem_courses
+                if (c.grade or "").strip().upper() not in ("N/A", "I", "W", "")
+            ]
+            is_in_prog = len(graded_courses) < len(sem_courses) or len(graded_courses) == 0
             sem_cr = sum(c.credit_hours for c in sem_courses)
-            
-            if not is_in_prog:
-                off_sgpa, off_cgpa = official_cgpa_map.get(sem_name, (3.65, 3.65))
-                sem_gpa = off_sgpa
-                sem_cgpa = off_cgpa
-                total_cr_completed += sem_cr
+            sem_graded_cr = sum(c.credit_hours for c in graded_courses)
+            sem_pts = sum(c.credit_hours * c.grade_points for c in graded_courses)
+
+            if not is_in_prog and sem_graded_cr > 0:
+                sem_gpa = round(sem_pts / sem_graded_cr, 2)
+                cum_points += sem_pts
+                cum_graded_credits += sem_graded_cr
+                sem_cgpa = round(cum_points / cum_graded_credits, 2) if cum_graded_credits > 0 else 0.0
+                
+                # Credits earned towards degree (exclude F / Fail)
+                passed_cr = sum(
+                    c.credit_hours for c in graded_courses
+                    if (c.grade or "").strip().upper() not in ("F", "FAIL")
+                )
+                total_cr_completed += passed_cr
                 completed_count += 1
                 latest_sgpa = sem_gpa
                 latest_cgpa = sem_cgpa
@@ -581,19 +607,38 @@ def get_academic_results(
             )
 
         progress = min(100.0, round((total_cr_completed / 130.0) * 100.0, 1))
-        standing = "Dean's Honor Roll" if latest_cgpa >= 3.5 else "Good Standing"
+        if latest_cgpa >= 3.5:
+            standing = "Dean's Honor Roll"
+        elif latest_cgpa >= 2.0:
+            standing = "Good Standing"
+        elif latest_cgpa > 0.0:
+            standing = "Academic Warning"
+        else:
+            standing = "Enrolled"
 
         return FullAcademicResultSchema(
             cgpa=latest_cgpa,
             current_sgpa=latest_sgpa,
-            total_credit_hours=total_cr_completed or 69.0,
-            completed_semesters_count=completed_count or 4,
-            degree_progress_pct=progress or 53.1,
+            total_credit_hours=round(total_cr_completed, 1),
+            completed_semesters_count=completed_count,
+            degree_progress_pct=progress,
             academic_standing=standing,
             semesters=semester_list,
         )
 
-    # Fallback complete official Bahria transcript (100% authentic to student 02-136242-009)
+    # For any regular student account with no grades yet, return clean empty result
+    if account.enrollment != "02-136242-009":
+        return FullAcademicResultSchema(
+            cgpa=0.0,
+            current_sgpa=0.0,
+            total_credit_hours=0.0,
+            completed_semesters_count=0,
+            degree_progress_pct=0.0,
+            academic_standing="Enrolled",
+            semesters=[],
+        )
+
+    # Isolated fallback ONLY for student Hunain Ahmed (02-136242-009) when grades not populated
     all_semesters = [
         SemesterResultSchema(
             semester_name="Fall-2024",

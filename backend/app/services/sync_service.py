@@ -142,7 +142,7 @@ async def run_account_sync(
 
         # 6. Save Student Profile details
         info = scraped.get("student_info", {})
-        if info.get("full_name") and not account.full_name:
+        if info.get("full_name") and (not account.full_name or account.full_name.strip().lower() in ("student", "")):
             account.full_name = info["full_name"]
         if info.get("program"):
             account.program = info["program"]
@@ -434,16 +434,24 @@ async def run_account_sync(
                 account.encrypted_session.updated_at = datetime.now(timezone.utc)
 
         # 13. Update Sync Status
-        sync_job.status = "SUCCESS"
-        sync_job.current_step = "Synchronization complete"
+        is_empty_scrape = len(scraped["courses"]) == 0 and len(scraped["attendance"]) == 0
+        if is_empty_scrape:
+            sync_job.status = "WARNING"
+            sync_job.current_step = "Portal verification incomplete"
+            sync_job.error_message = "No registered courses or attendance returned by university portal for current term."
+            account.last_sync_status = "WARNING"
+            account.last_sync_error = "No enrolled courses or attendance discovered. Verify portal status."
+        else:
+            sync_job.status = "SUCCESS"
+            sync_job.current_step = "Synchronization complete"
+            account.last_sync_status = "SUCCESS"
+            account.last_sync_error = None
+            account.last_synced_at = datetime.now(timezone.utc)
+
         sync_job.assignments_count = len(scraped["assignments"])
         sync_job.attendance_count = len(scraped["attendance"])
         sync_job.materials_count = len(scraped["materials"])
         sync_job.completed_at = datetime.now(timezone.utc)
-
-        account.last_synced_at = datetime.now(timezone.utc)
-        account.last_sync_status = "SUCCESS"
-        account.last_sync_error = None
 
         db.commit()
         db.refresh(sync_job)

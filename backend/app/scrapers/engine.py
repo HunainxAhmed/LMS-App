@@ -35,6 +35,13 @@ class ScrapingEngine:
         self.campus_name = campus_name
         self.campus_id = campus_id
         self.cookies = cookies or {}
+        self.student_info: Dict[str, Any] = {
+            "full_name": "",
+            "enrollment": enrollment,
+            "campus_name": campus_name,
+            "program": "",
+            "current_semester": "",
+        }
         self.attendance_threshold = attendance_threshold
         self.cms_base = settings.BAHRIA_CMS_BASE_URL.rstrip('/')
         self.lms_base = settings.BAHRIA_LMS_BASE_URL.rstrip('/')
@@ -61,7 +68,7 @@ class ScrapingEngine:
         except Exception:
             return False
 
-    async def _try_http_login(self, client: httpx.AsyncClient) -> Tuple[bool, Dict[str, str]]:
+    async def _try_http_login(self, client: httpx.AsyncClient) -> Tuple[bool, Dict[str, str], Dict[str, Any]]:
         """
         Attempts direct HTTP POST login to CMS ASP.NET form to avoid launching a browser.
         Extracts __VIEWSTATE, __EVENTVALIDATION, etc.
@@ -70,7 +77,7 @@ class ScrapingEngine:
             login_url = f"{self.cms_base}/Logins/Student/Login.aspx"
             get_resp = await client.get(login_url, headers=COMMON_HEADERS, timeout=10.0)
             if get_resp.status_code != 200:
-                return False, {}
+                return False, {}, {}
 
             soup = BeautifulSoup(get_resp.text, "html.parser")
             form_data: Dict[str, str] = {}
@@ -100,7 +107,33 @@ class ScrapingEngine:
 
             # Check if redirected to authenticated portal (/Sys/ or any authenticated page)
             url_lower = str(post_resp.url).lower()
-            if "login.aspx" not in url_lower and "/sys/" in url_lower:
+            if "login.aspx" in url_lower:
+                logger.info("Direct HTTP login failed: credentials rejected on Login.aspx.")
+                return False, {}, {}
+
+            # Detect mandatory survey or undertaking wall
+            if any(k in url_lower for k in ("qualityassurance", "survey", "undertaking")):
+                logger.info(f"Direct HTTP login detected survey/notice wall at {post_resp.url}. Delegating to Playwright for auto-survey completion.")
+                return False, {}, {}
+
+            if "/sys/" in url_lower:
+                extracted_info = parse_cms_profile(post_resp.text)
+                if not extracted_info.get("full_name"):
+                    try:
+                        dash_resp = await client.get(
+                            f"{self.cms_base}/Sys/Student/Dashboard.aspx",
+                            headers={**COMMON_HEADERS, "Referer": str(post_resp.url)},
+                            timeout=8.0,
+                            follow_redirects=True
+                        )
+                        if dash_resp.status_code == 200:
+                            dash_prof = parse_cms_profile(dash_resp.text)
+                            for k, v in dash_prof.items():
+                                if v:
+                                    extracted_info[k] = v
+                    except Exception as e:
+                        logger.debug(f"Direct HTTP profile extraction note: {e}")
+
                 merged_cookies = dict(client.cookies)
                 merged_cookies.update(dict(post_resp.cookies))
 
@@ -113,19 +146,24 @@ class ScrapingEngine:
                         timeout=12.0,
                         follow_redirects=True
                     )
+                    # If GoToLMS redirected to QA survey, transition was blocked
+                    if any(k in str(lms_resp.url).lower() for k in ("qualityassurance", "survey")):
+                        logger.info("GoToLMS redirected to Quality Assurance Surveys. Delegating to Playwright.")
+                        return False, {}, {}
+
                     merged_cookies.update(dict(client.cookies))
                     merged_cookies.update(dict(lms_resp.cookies))
                 except Exception as e:
                     logger.debug(f"GoToLMS transit note: {e}")
 
-                return True, merged_cookies
+                return True, merged_cookies, extracted_info
             else:
                 logger.info(f"Direct HTTP login remained on {post_resp.url}. Delegating to Playwright browser automation.")
-                return False, {}
+                return False, {}, {}
         except Exception as e:
             logger.debug(f"Direct HTTP login attempt encountered: {e}")
 
-        return False, {}
+        return False, {}, {}
 
     async def authenticate(self, need_lms: bool = True) -> Tuple[bool, str, Dict[str, Any]]:
         """
@@ -134,21 +172,24 @@ class ScrapingEngine:
         If valid on CMS & LMS, returns immediately so lightweight HTTPX can scrape without launching Chromium.
         Only launches Playwright if cookies are expired or missing.
         """
-        async with httpx.AsyncClient(headers=COMMON_HEADERS, verify=False) as client:
+        async with httpx.AsyncClient(headers=COMMON_HEADERS, verify=False, follow_redirects=True) as client:
             if await self._test_session_validity(client):
                 logger.info("Existing session cookies are valid on CMS & LMS. Using fast HTTP scraper (zero Chromium overhead).")
-                return True, "", {}
+                return True, "", self.student_info
 
             # Ultra-fast direct HTTP login & LMS transition (2-3s, zero Chromium RAM overhead)
             logger.info("Attempting direct HTTP login and LMS transition...")
-            http_success, new_cookies = await self._try_http_login(client)
+            http_success, new_cookies, extracted_info = await self._try_http_login(client)
             if http_success:
                 if not need_lms or "PHPSESSID" in new_cookies:
                     self.cookies = new_cookies
-                    logger.info(f"Direct HTTP login succeeded with cookies: {list(new_cookies.keys())}")
-                    return True, "", {}
+                    for k, v in extracted_info.items():
+                        if v:
+                            self.student_info[k] = v
+                    logger.info(f"Direct HTTP login succeeded with cookies: {list(new_cookies.keys())}, student: {self.student_info.get('full_name')}")
+                    return True, "", self.student_info
 
-        # If LMS access is needed or direct HTTP CMS login failed, launch fast Playwright automation
+        # If LMS access is needed or direct HTTP CMS login failed (surveys, dynamic ASP.NET wall), launch Playwright automation
         logger.info("Launching fast Playwright browser automation for authentication and LMS transition...")
         browser_success, error_msg, browser_cookies, student_info = await login_with_browser(
             enrollment=self.enrollment,
@@ -163,7 +204,10 @@ class ScrapingEngine:
             return False, error_msg, {}
 
         self.cookies = browser_cookies
-        return True, "", student_info
+        for k, v in student_info.items():
+            if v and not k.startswith("_"):
+                self.student_info[k] = v
+        return True, "", self.student_info
 
     async def scrape_all(self, on_progress: Optional[Any] = None) -> Dict[str, Any]:
         """
@@ -201,7 +245,7 @@ class ScrapingEngine:
         if browser_data.get("materials"):
             results["materials"] = browser_data["materials"]
 
-        async with httpx.AsyncClient(headers=COMMON_HEADERS, cookies=self.cookies, verify=False, timeout=25.0) as client:
+        async with httpx.AsyncClient(headers=COMMON_HEADERS, cookies=self.cookies, verify=False, timeout=25.0, follow_redirects=True) as client:
             # Step 1: Scrape Attendance from CMS (if not already collected)
             if not results["attendance"]:
                 if on_progress:
@@ -209,10 +253,12 @@ class ScrapingEngine:
                 try:
                     att_url = f"{self.cms_base}/Sys/Student/ClassAttendance/StudentWiseAttendance.aspx"
                     att_resp = await client.get(att_url)
-                    if att_resp.status_code == 200:
+                    if att_resp.status_code == 200 and "qualityassurancesurveys.aspx" not in str(att_resp.url).lower():
                         att_records = parse_attendance_html(att_resp.text, self.attendance_threshold)
                         results["attendance"] = att_records
                         logger.info(f"Scraped {len(att_records)} attendance records.")
+                    elif "qualityassurancesurveys.aspx" in str(att_resp.url).lower():
+                        logger.info(f"Attendance URL redirected to QA Surveys: {att_resp.url}")
                 except Exception as e:
                     logger.warning(f"Attendance scraping error: {e}")
 
@@ -312,6 +358,44 @@ class ScrapingEngine:
                         "title": att["title"],
                     })
                 results["courses"] = courses_list
+
+            # If HTTP scrape produced 0 attendance AND 0 courses, trigger Playwright fallback with auto QA survey completion
+            if not results["attendance"] and not results["courses"]:
+                logger.warning(
+                    f"HTTP scrape produced 0 attendance and 0 courses for {self.enrollment}. "
+                    "Triggering Playwright automation fallback with auto-survey completion and data extraction..."
+                )
+                try:
+                    b_ok, b_err, b_cookies, b_info = await login_with_browser(
+                        enrollment=self.enrollment,
+                        password=self.password,
+                        campus_name=self.campus_name,
+                        campus_id=self.campus_id,
+                        scrape_data=True,
+                        need_lms=True,
+                    )
+                    if b_ok:
+                        self.cookies = b_cookies
+                        results["cookies"] = b_cookies
+                        b_data = b_info.get("_scraped_data") or {}
+                        if b_data.get("attendance"):
+                            results["attendance"] = b_data["attendance"]
+                        if b_data.get("courses"):
+                            results["courses"] = b_data["courses"]
+                            courses_list = b_data["courses"]
+                        if b_data.get("assignments"):
+                            results["assignments"] = b_data["assignments"]
+                        if b_data.get("materials"):
+                            results["materials"] = b_data["materials"]
+                        for k in ("full_name", "program", "current_semester"):
+                            if b_info.get(k) and not results["student_info"].get(k):
+                                results["student_info"][k] = b_info[k]
+                        logger.info(
+                            f"Playwright fallback successfully rescued data: {len(results['courses'])} courses, "
+                            f"{len(results['attendance'])} attendance records, {len(results['assignments'])} assignments."
+                        )
+                except Exception as b_fallback_err:
+                    logger.error(f"Playwright browser fallback encounter: {b_fallback_err}")
 
             logger.info(f"Discovered {len(results['courses'])} enrolled courses.")
 

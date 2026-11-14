@@ -33,6 +33,7 @@ import {
   Award,
   Calculator,
   Clock,
+  RefreshCw,
   Info,
 } from "lucide-react-native";
 
@@ -67,12 +68,12 @@ export const ResultsScreenContent: React.FC = () => {
     }));
   };
 
-  const cgpa = results?.cgpa ?? 3.65;
-  const currentSgpa = results?.current_sgpa ?? 3.63;
-  const totalCredits = results?.total_credit_hours ?? 69.0;
-  const completedSemestersCount = results?.completed_semesters_count ?? 4;
-  const degreeProgressPct = results?.degree_progress_pct ?? 53.1;
-  const standing = results?.academic_standing ?? "Dean's Honor Roll";
+  const cgpa = results?.cgpa ?? 0.0;
+  const currentSgpa = results?.current_sgpa ?? 0.0;
+  const totalCredits = results?.total_credit_hours ?? 0.0;
+  const completedSemestersCount = results?.completed_semesters_count ?? 0;
+  const degreeProgressPct = results?.degree_progress_pct ?? 0.0;
+  const standing = results?.academic_standing ?? (cgpa > 0 ? "Good Standing" : "Enrolled");
   const semesters = results?.semesters || [];
 
   // Completed semesters for progression chart
@@ -80,15 +81,8 @@ export const ResultsScreenContent: React.FC = () => {
     (s: any) => !s.is_in_progress && s.gpa > 0
   );
 
-  // Fallback completed data if empty
-  const chartData = completedSemesters.length > 0
-    ? completedSemesters
-    : [
-        { semester_name: "Fall-2024", gpa: 3.67, cgpa: 3.67, credit_hours: 17 },
-        { semester_name: "Spring-2025", gpa: 3.69, cgpa: 3.68, credit_hours: 18 },
-        { semester_name: "Fall-2025", gpa: 3.61, cgpa: 3.65, credit_hours: 17 },
-        { semester_name: "Spring-2026", gpa: 3.63, cgpa: 3.65, credit_hours: 17 },
-      ];
+  // Dynamic completed semesters for progression chart (no hardcoded fallback)
+  const chartData = completedSemesters;
 
   // Target GPA Planner math
   const target = parseFloat(targetCgpaInput) || 3.70;
@@ -252,7 +246,8 @@ export const ResultsScreenContent: React.FC = () => {
             </View>
 
             {/* GPA Progression Line Chart (LMS+ style) */}
-            <View style={styles.chartCard} onLayout={onChartLayout}>
+            {chartData.length > 0 && (
+              <View style={styles.chartCard} onLayout={onChartLayout}>
               <View style={styles.chartHeader}>
                 <View style={styles.chartTitleGroup}>
                   <TrendingUp size={16} color={colors.textPrimary} />
@@ -448,13 +443,14 @@ export const ResultsScreenContent: React.FC = () => {
                     <View style={styles.inspectionStatItem}>
                       <Text style={styles.inspectionStatLabel}>Courses</Text>
                       <Text style={styles.inspectionStatValue}>
-                        {selectedData.courses?.length || 9}
+                        {selectedData.courses?.length || 0}
                       </Text>
                     </View>
                   </View>
                 </View>
               )}
             </View>
+            )}
 
             {/* Semester Transcripts List */}
             <View style={styles.sectionHeader}>
@@ -467,7 +463,26 @@ export const ResultsScreenContent: React.FC = () => {
               </Text>
             </View>
 
-            {semesters.map((sem: any) => {
+            {semesters.length === 0 ? (
+              <View style={styles.emptyResultsCard}>
+                <View style={styles.emptyResultsIconBox}>
+                  <GraduationCap size={32} color="#059669" />
+                </View>
+                <Text style={styles.emptyResultsTitle}>No Examination Results Released Yet</Text>
+                <Text style={styles.emptyResultsSubtitle}>
+                  Official semester transcripts are published by Bahria University at the end of each term. If your examinations were completed, tap below to sync directly from CMS.
+                </Text>
+                <TouchableOpacity
+                  style={styles.emptySyncButton}
+                  onPress={() => refetch()}
+                  activeOpacity={0.8}
+                >
+                  <RefreshCw size={15} color="#ffffff" style={{ marginRight: 6 }} />
+                  <Text style={styles.emptySyncButtonText}>Sync from CMS</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              semesters.map((sem: any) => {
               const isExpanded = !!expandedSemesters[sem.semester_name];
               const isInProgress = !!sem.is_in_progress;
               const courses = sem.courses || [];
@@ -609,7 +624,7 @@ export const ResultsScreenContent: React.FC = () => {
                   )}
                 </View>
               );
-            })}
+            }))}
 
             {/* Target CGPA Simulator / What-If Planner Accordion */}
             <View style={styles.plannerCard}>
@@ -1303,5 +1318,63 @@ const styles = StyleSheet.create({
   scaleRange: {
     fontSize: 10,
     color: colors.textMuted,
+  },
+
+  /* Empty Results State */
+  emptyResultsCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  emptyResultsIconBox: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#ecfdf5",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  emptyResultsTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.textPrimary,
+    textAlign: "center",
+    marginBottom: 6,
+  },
+  emptyResultsSubtitle: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 19,
+    paddingHorizontal: 8,
+    marginBottom: 16,
+  },
+  emptySyncButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#059669",
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    shadowColor: "#059669",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  emptySyncButtonText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "600",
   },
 });
