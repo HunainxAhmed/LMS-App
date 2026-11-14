@@ -36,7 +36,7 @@ CURRENT_CONFIG = {
         "Instant smooth tab switching & refined download management"
     ],
     "download_url": "/api/v1/app/download-apk",
-    "direct_apk_url": "https://expo.dev/artifacts/eas/Y8NuDNH4gAagMegHD7qVeVko8n1xvWyvxyC739auCVc.apk",
+    "direct_apk_url": "https://expo.dev/artifacts/eas/rGGbbS4VgAw7uEOl_93JwS_U7ozDhjRv8XlxMngwYA8.apk",
     "file_size_bytes": 36700000,
     "published_at": "2026-11-14T08:00:00Z"
 }
